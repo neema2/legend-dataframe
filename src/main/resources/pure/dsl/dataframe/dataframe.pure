@@ -80,6 +80,7 @@ Class meta::pure::dsl::dataframe::metamodel::TableReference extends DataSource
    tableName : String[1];
    schema : String[0..1];
    alias : String[0..1];
+   tableSchema : TableSchema<Any>[0..1]; // Optional reference to table schema
 }
 
 // Join operation
@@ -176,11 +177,13 @@ Enum meta::pure::dsl::dataframe::metamodel::SortDirection
 Class meta::pure::dsl::dataframe::metamodel::column::ColSpec<T>
 {
    name: String[1];
+   tableSchema: TableSchema<T>[0..1];
 }
 
 Class meta::pure::dsl::dataframe::metamodel::column::ColSpecArray<T>
 {
    names: String[*];
+   tableSchema: TableSchema<T>[0..1];
 }
 
 Class meta::pure::dsl::dataframe::metamodel::column::FuncColSpec<F, Z>
@@ -209,6 +212,13 @@ Class meta::pure::dsl::dataframe::metamodel::column::WindowSpec
    orderBy: String[*];
 }
 
+// Table schema representation with column definitions
+Class meta::pure::dsl::dataframe::metamodel::TableSchema<T>
+{
+   name: String[1];
+   columns: Map<String, Type>[1];
+}
+
 // Aggregate functions
 Class meta::pure::dsl::dataframe::metamodel::AggregateFunction extends FunctionExpression
 {
@@ -223,6 +233,41 @@ function meta::pure::dsl::dataframe::~(name:String[1]):ColSpec<Any>[1]
 function meta::pure::dsl::dataframe::~(names:String[*]):ColSpecArray<Any>[1]
 {
     ^ColSpecArray<Any>(names=$names);
+}
+
+// Table-aware tilde notation for single column reference
+function meta::pure::dsl::dataframe::~<T>(schema: TableSchema<T>[1], name: String[1]): ColSpec<T>[1]
+{
+   // Validate column exists in schema
+   if($schema.columns->containsKey($name),
+      ^ColSpec<T>(name = $name, tableSchema = $schema),
+      error('Column "' + $name + '" not found in table schema "' + $schema.name + '"')
+   );
+}
+
+// Tilde notation for quoted column names (with spaces)
+function meta::pure::dsl::dataframe::~<T>(schema: TableSchema<T>[1], name: String[1], quoted: Boolean[1]): ColSpec<T>[1]
+{
+   if($quoted, 
+      // For quoted names, we don't need to look up directly
+      ^ColSpec<T>(name = $name, tableSchema = $schema),
+      // For unquoted names, validate it exists
+      if($schema.columns->containsKey($name),
+         ^ColSpec<T>(name = $name, tableSchema = $schema),
+         error('Column "' + $name + '" not found in table schema "' + $schema.name + '"')
+      )
+   );
+}
+
+// Tilde notation for multiple column references
+function meta::pure::dsl::dataframe::~<T>(schema: TableSchema<T>[1], names: String[*]): ColSpecArray<T>[1]
+{
+   // Validate all columns exist in schema
+   let invalidColumns = $names->filter(n | !$schema.columns->containsKey($n));
+   if($invalidColumns->isEmpty(),
+      ^ColSpecArray<T>(names = $names, tableSchema = $schema),
+      error('Columns [' + $invalidColumns->joinStrings(', ') + '] not found in table schema "' + $schema.name + '"')
+   );
 }
 
 // Common aggregate functions
@@ -256,9 +301,18 @@ function meta::pure::dsl::dataframe::newDataFrame(): DataFrame[1]
 // Type-safe select functions
 function meta::pure::dsl::dataframe::select<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
 {
-   let newColumns = $cols.names->map(n | $df.columns->filter(c | $c.name == $n)->toOne());
+   // Create column references from ColSpecArray
+   let colRefs = $cols.names->map(n | 
+      ^ColumnReference(columnName = $n)
+   );
+   
+   // Create columns with expressions
+   let dfColumns = $colRefs->map(cr |
+      ^Column(name = $cr.columnName, expression = $cr, alias = $cr.columnName)
+   );
+   
    ^DataFrame(
-      columns = $newColumns,
+      columns = $dfColumns,
       source = $df.source,
       distinct = false
    );
@@ -266,9 +320,14 @@ function meta::pure::dsl::dataframe::select<T, Z>(df: DataFrame[1], cols: ColSpe
 
 function meta::pure::dsl::dataframe::select<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
 {
-   let newColumn = $df.columns->filter(c | $c.name == $col.name)->toOne();
+   // Create column reference
+   let colRef = ^ColumnReference(columnName = $col.name);
+   
+   // Create column with expression
+   let dfColumn = ^Column(name = $colRef.columnName, expression = $colRef, alias = $colRef.columnName);
+   
    ^DataFrame(
-      columns = [$newColumn],
+      columns = [$dfColumn],
       source = $df.source,
       distinct = false
    );
@@ -315,6 +374,13 @@ function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], condition: Func
    ^$df(filter = $condition)
 }
 
+// Type-safe filter function with lambda expression
+function meta::pure::dsl::dataframe::filter<T, Z>(df: DataFrame[1], tableSchema: TableSchema<T>[1], condition: Function<{T[1]->Boolean[1]}>[1]): DataFrame[1]
+{
+   // Validate condition against table schema
+   ^$df(filter = $condition)
+}
+
 function meta::pure::dsl::dataframe::where(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
 {
    ^$df(filter = $condition)
@@ -323,12 +389,34 @@ function meta::pure::dsl::dataframe::where(df: DataFrame[1], condition: FilterCo
 // Type-safe groupBy functions
 function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
 {
-   ^$df(groupBy = ^GroupByClause(columns = $cols.names->map(n | ^ColumnReference(columnName = $n))))
+   // Create column references from ColSpecArray
+   let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+   
+   ^$df(groupBy = ^GroupByClause(columns = $colRefs));
 }
 
 function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
 {
-   ^$df(groupBy = ^GroupByClause(columns = [^ColumnReference(columnName = $col.name)]))
+   // Create column reference
+   let colRef = ^ColumnReference(columnName = $col.name);
+   
+   ^$df(groupBy = ^GroupByClause(columns = [$colRef]));
+}
+
+// Type-safe groupBy function with table schema validation
+function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], tableSchema: TableSchema<T>[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
+{
+   // Validate columns against table schema
+   let invalidColumns = $cols.names->filter(n | !$tableSchema.columns->containsKey($n));
+   if($invalidColumns->isEmpty(),
+      {
+         // Create column references from ColSpecArray
+         let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+         
+         ^$df(groupBy = ^GroupByClause(columns = $colRefs));
+      },
+      error('Columns [' + $invalidColumns->joinStrings(', ') + '] not found in table schema "' + $tableSchema.name + '"')
+   );
 }
 
 function meta::pure::dsl::dataframe::groupBy(df: DataFrame[1], columns: Expression[*]): DataFrame[1]
@@ -522,6 +610,18 @@ function meta::pure::dsl::dataframe::tableAs(name: String[1], alias: String[1]):
 function meta::pure::dsl::dataframe::tableAs(schema: String[1], name: String[1], alias: String[1]): TableReference[1]
 {
    ^TableReference(tableName = $name, schema = $schema, alias = $alias)
+}
+
+// Define a table with schema
+function meta::pure::dsl::dataframe::tableWithSchema<T>(name: String[1], schema: TableSchema<T>[1]): TableReference[1]
+{
+   ^TableReference(tableName = $name, tableSchema = $schema);
+}
+
+// Define a table with schema and alias
+function meta::pure::dsl::dataframe::tableWithSchemaAs<T>(name: String[1], schema: TableSchema<T>[1], alias: String[1]): TableReference[1]
+{
+   ^TableReference(tableName = $name, tableSchema = $schema, alias = $alias);
 }
 
 function meta::pure::dsl::dataframe::join(left: DataSource[1], right: DataSource[1], condition: FilterCondition[1]): JoinOperation[1]

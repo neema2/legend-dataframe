@@ -25,6 +25,18 @@ import meta::pure::dsl::tests::*;
 
 function <<test.Test>> meta::pure::dsl::tests::testSimpleSelect(): Boolean[1]
 {
+   // Define a table schema
+   let customerSchema = ^TableSchema<Any>(
+      name = 'customers',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('name', String)
+      ])
+   );
+   
+   // Create a table with schema
+   let customersTable = tableWithSchema('customers', $customerSchema);
+   
    // Create a simple SELECT query using type-safe constructs
    let df = select([
       as(col('id'), 'id'),
@@ -32,21 +44,33 @@ function <<test.Test>> meta::pure::dsl::tests::testSimpleSelect(): Boolean[1]
    ])->from(table('customers'));
    
    // Type-safe version using tilde notation
-   let typeSafeDf = select(~['id', 'name'])->from(table('customers'));
+   let typeSafeDf = select(~($customerSchema, ['id', 'name']))->from($customersTable);
    
    // Generate SQL for Snowflake
-   let snowflakeSQL = $df->generateSnowflakeSQL();
-   assertEquals('SELECT id AS id, name AS name\nFROM customers', $snowflakeSQL);
+   let snowflakeSQL = $typeSafeDf->generateSnowflakeSQL();
+   assertEquals('SELECT id, name\nFROM customers', $snowflakeSQL);
    
    // Generate SQL for DuckDB
-   let duckdbSQL = $df->generateDuckDBSQL();
-   assertEquals('SELECT id AS id, name AS name\nFROM customers', $duckdbSQL);
+   let duckdbSQL = $typeSafeDf->generateDuckDBSQL();
+   assertEquals('SELECT id, name\nFROM customers', $duckdbSQL);
    
    true;
 }
 
 function <<test.Test>> meta::pure::dsl::tests::testSelectWithFilter(): Boolean[1]
 {
+   // Define a table schema
+   let customerSchema = ^TableSchema<Any>(
+      name = 'customers',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('name', String)
+      ])
+   );
+   
+   // Create a table with schema
+   let customersTable = tableWithSchema('customers', $customerSchema);
+   
    // Create a SELECT query with WHERE clause
    let df = select([
       as(col('id'), 'id'),
@@ -54,9 +78,9 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithFilter(): Boolean[1
    ])->from(table('customers'))->where(eq(col('id'), literal(100)));
    
    // Type-safe version using tilde notation and filter function
-   let typeSafeDf = select(~['id', 'name'])
-      ->from(table('customers'))
-      ->filter({x | $x.id == 100});
+   let typeSafeDf = select(~($customerSchema, ['id', 'name']))
+      ->from($customersTable)
+      ->filter($customerSchema, {x | $x.id == 100});
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -97,6 +121,19 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithJoin(): Boolean[1]
 
 function <<test.Test>> meta::pure::dsl::tests::testSelectWithGroupBy(): Boolean[1]
 {
+   // Define a table schema
+   let orderSchema = ^TableSchema<Any>(
+      name = 'orders',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('category', String),
+         pair('amount', Decimal)
+      ])
+   );
+   
+   // Create a table with schema
+   let ordersTable = tableWithSchema('orders', $orderSchema);
+   
    // Create a SELECT query with GROUP BY and aggregate functions
    let df = select([
       as(col('category'), 'category'),
@@ -106,10 +143,10 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithGroupBy(): Boolean[
    
    // Type-safe version using tilde notation
    let typeSafeDf = select([
-      as(col('category'), 'category'),
-      as(count(col('id')), 'count'),
-      as(sum(~'amount'), 'total_amount')
-   ])->from(table('orders'))->groupBy(~'category');
+      as(~($orderSchema, 'category'), 'category'),
+      as(count(~($orderSchema, 'id')), 'count'),
+      as(sum(~($orderSchema, 'amount')), 'total_amount')
+   ])->from($ordersTable)->groupBy(~($orderSchema, 'category'));
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -124,6 +161,18 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithGroupBy(): Boolean[
 
 function <<test.Test>> meta::pure::dsl::tests::testSelectWithOrderBy(): Boolean[1]
 {
+   // Define a table schema
+   let customerSchema = ^TableSchema<Any>(
+      name = 'customers',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('name', String)
+      ])
+   );
+   
+   // Create a table with schema
+   let customersTable = tableWithSchema('customers', $customerSchema);
+   
    // Create a SELECT query with ORDER BY
    let df = select([
       as(col('id'), 'id'),
@@ -131,10 +180,10 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithOrderBy(): Boolean[
    ])->from(table('customers'))->orderBy([asc(col('name')), desc(col('id'))]);
    
    // Type-safe version using tilde notation
-   let typeSafeDf = select(~['id', 'name'])
-      ->from(table('customers'))
-      ->orderBy(~'name', false)  // ASC
-      ->orderBy(~'id', true);    // DESC
+   let typeSafeDf = select(~($customerSchema, ['id', 'name']))
+      ->from($customersTable)
+      ->orderBy(~($customerSchema, 'name'), false)  // ASC
+      ->orderBy(~($customerSchema, 'id'), true);    // DESC
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -149,6 +198,18 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithOrderBy(): Boolean[
 
 function <<test.Test>> meta::pure::dsl::tests::testSelectWithLimit(): Boolean[1]
 {
+   // Define a table schema
+   let customerSchema = ^TableSchema<Any>(
+      name = 'customers',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('name', String)
+      ])
+   );
+   
+   // Create a table with schema
+   let customersTable = tableWithSchema('customers', $customerSchema);
+   
    // Create a SELECT query with LIMIT and OFFSET
    let df = select([
       as(col('id'), 'id'),
@@ -156,8 +217,8 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithLimit(): Boolean[1]
    ])->from(table('customers'))->limit(10)->offset(20);
    
    // Type-safe version using tilde notation
-   let typeSafeDf = select(~['id', 'name'])
-      ->from(table('customers'))
+   let typeSafeDf = select(~($customerSchema, ['id', 'name']))
+      ->from($customersTable)
       ->limit(10)
       ->offset(20);
    
@@ -330,4 +391,53 @@ function <<access.private>> meta::pure::dsl::tests::assertEquals(expected: Any[1
    {
       true;
    }
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testTableSchemaAndTypeSafeColumns(): Boolean[1]
+{
+   // Define a table schema
+   let userSchema = ^TableSchema<Any>(
+      name = 'users',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('name', String), 
+         pair('email', String),
+         pair('created at', DateTime)
+      ])
+   );
+   
+   // Create a table with schema
+   let usersTable = tableWithSchema('users', $userSchema);
+   
+   // Test valid column references
+   let validColSpec = ~($userSchema, 'id');
+   let validColSpecQuoted = ~($userSchema, 'created at', true);
+   let validColSpecArray = ~($userSchema, ['id', 'name', 'email']);
+   
+   // Test select with type-safe columns
+   let df = select([
+      as(validColSpec, 'id'),
+      as(validColSpecQuoted, 'created_at')
+   ])->from($usersTable);
+   
+   // Generate SQL for Snowflake and verify
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, "created at" AS created_at\nFROM users', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB and verify
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, "created at" AS created_at\nFROM users', $duckdbSQL);
+   
+   // Test select with array of columns
+   let dfArray = select(validColSpecArray)->from($usersTable);
+   
+   // Generate SQL for Snowflake and verify
+   let snowflakeSQLArray = $dfArray->generateSnowflakeSQL();
+   assertEquals('SELECT id, name, email\nFROM users', $snowflakeSQLArray);
+   
+   // Generate SQL for DuckDB and verify
+   let duckdbSQLArray = $dfArray->generateDuckDBSQL();
+   assertEquals('SELECT id, name, email\nFROM users', $duckdbSQLArray);
+   
+   true;
 }

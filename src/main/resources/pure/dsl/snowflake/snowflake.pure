@@ -140,12 +140,17 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeFunctio
 // Generate SQL for type-safe column specifications
 function <<access.private>> meta::pure::dsl::snowflake::generateSQLFromColSpec<T>(colSpec: ColSpec<T>[1]): String[1]
 {
-   $colSpec.name;
+   // For snowflake, quoted identifiers use double quotes
+   if($colSpec.name->contains(' '), 
+      '"' + $colSpec.name + '"', 
+      $colSpec.name
+   );
 }
 
 function <<access.private>> meta::pure::dsl::snowflake::generateSQLFromColSpecArray<T>(colSpecs: ColSpecArray<T>[1]): String[1]
 {
-   $colSpecs.names->joinStrings(', ');
+   // Handle column names with spaces by quoting them
+   $colSpecs.names->map(n | if($n->contains(' '), '"' + $n + '"', $n))->joinStrings(', ');
 }
 
 function <<access.private>> meta::pure::dsl::snowflake::generateSQLFromFuncColSpec<F, Z>(funcColSpec: FuncColSpec<F, Z>[1]): String[1]

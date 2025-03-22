@@ -1,0 +1,110 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::window::*;
+
+// Standard window function generation
+function meta::pure::dsl::dataframe::generateWindowFunctionSQL(func: WindowFunction[1], expressionGenerator: Function<{Expression[1]->String[1]}>[1], windowGenerator: Function<{Window[1]->String[1]}>[1]): String[1]
+{
+   let functionCall = $func->match([
+      r: RowNumberFunction[1] | 'ROW_NUMBER()',
+      r: RankFunction[1] | 'RANK()',
+      d: DenseRankFunction[1] | 'DENSE_RANK()',
+      l: LeadLagFunction[1] | $l.functionName->toUpperCase() + '(' + 
+                                $l.parameters->map(p | $expressionGenerator->eval($p))->joinStrings(', ') +
+                                if($l.offset->isNotEmpty(), ', ' + $expressionGenerator->eval($l.offset->toOne()), '') + 
+                                if($l.defaultValue->isNotEmpty(), ', ' + $expressionGenerator->eval($l.defaultValue->toOne()), '') +
+                                ')',
+      f: FirstLastValueFunction[1] | $f.functionName->toUpperCase() + '(' + 
+                                      $f.parameters->map(p | $expressionGenerator->eval($p))->joinStrings(', ') + 
+                                      ')' + if($f.ignoreNulls == true, ' IGNORE NULLS', ''),
+      a: AggregateWindowFunction[1] | $a.functionName->toUpperCase() + '(' + 
+                                      $a.parameters->map(p | $expressionGenerator->eval($p))->joinStrings(', ') + 
+                                      ')',
+      w: WindowFunction[1] | $w.functionName + '(' + 
+                              $w.parameters->map(p | $expressionGenerator->eval($p))->joinStrings(', ') + 
+                              ')'
+   ]);
+   
+   $functionCall + ' OVER(' + $windowGenerator->eval($func.window) + ')';
+}
+
+// Standard window specification generation
+function meta::pure::dsl::dataframe::generateWindowSpecSQL(windowSpec: Window[1], expressionGenerator: Function<{Expression[1]->String[1]}>[1]): String[1]
+{
+   let partitionBy = if($windowSpec.partitionBy->isEmpty(), 
+                     '', 
+                     'PARTITION BY ' + $windowSpec.partitionBy->map(p | $expressionGenerator->eval($p))->joinStrings(', '));
+   
+   let orderBy = if($windowSpec.orderBy->isEmpty(), 
+                 '', 
+                 if($partitionBy->isEmpty(), '', ' ') + 
+                 'ORDER BY ' + $windowSpec.orderBy->map(o | $expressionGenerator->eval($o.expression) + 
+                     if($o.direction == SortDirection.ASC, '', ' DESC'))->joinStrings(', '));
+   
+   $partitionBy + $orderBy;
+}
+
+// Standard _Window specification generation
+function meta::pure::dsl::dataframe::generateWindowSpecSQL(windowSpec: _Window<Any>[1], expressionGenerator: Function<{Expression[1]->String[1]}>[1]): String[1]
+{
+   let partitionBy = if($windowSpec.partition->isEmpty(), 
+                     '', 
+                     'PARTITION BY ' + $windowSpec.partition->joinStrings(', '));
+   
+   let orderBy = if($windowSpec.sortInfo->isEmpty(), 
+                 '', 
+                 if($partitionBy->isEmpty(), '', ' ') + 
+                 'ORDER BY ' + $windowSpec.sortInfo->map(s | $s.column + 
+                     if($s.direction == SortDirection.ASC, '', ' DESC'))->joinStrings(', '));
+   
+   let frame = if($windowSpec.frame->isEmpty(), 
+               '', 
+               if($partitionBy->isEmpty() && $orderBy->isEmpty(), '', ' ') + 
+               generateFrameSQL($windowSpec.frame->toOne()));
+   
+   $partitionBy + $orderBy + $frame;
+}
+
+// Standard frame generation
+function meta::pure::dsl::dataframe::generateFrameSQL(frame: Frame[1]): String[1]
+{
+   let frameType = if($frame->instanceOf(Rows), 'ROWS', 'RANGE');
+   
+   let start = generateFrameValueSQL($frame.offsetFrom);
+   let end = generateFrameValueSQL($frame.offsetTo);
+   
+   $frameType + ' BETWEEN ' + $start + ' AND ' + $end;
+}
+
+// Standard frame value generation
+function meta::pure::dsl::dataframe::generateFrameValueSQL(frameValue: FrameValue[1]): String[1]
+{
+   if($frameValue->instanceOf(UnboundedFrameValue),
+      | 'UNBOUNDED PRECEDING',
+      | if($frameValue->instanceOf(FrameIntValue),
+           | let value = $frameValue->cast(@FrameIntValue).value;
+             if($value == 0,
+                | 'CURRENT ROW',
+                | if($value > 0,
+                     | $value->toString() + ' FOLLOWING',
+                     | ($value * -1)->toString() + ' PRECEDING'
+                  )
+             );,
+           | 'UNBOUNDED PRECEDING' // Default case
+        )
+   );
+}

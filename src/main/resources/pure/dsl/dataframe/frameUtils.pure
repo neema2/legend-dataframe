@@ -1,0 +1,77 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::frame::*;
+
+function <<functionType.NormalizeRequiredFunction>>
+   meta::pure::dsl::dataframe::rows(offsetFrom: Integer[1], offsetTo: Integer[1]): Rows[1]
+{
+   ^Rows(
+      offsetFrom = ^FrameIntValue(value = $offsetFrom),
+      offsetTo = ^FrameIntValue(value = $offsetTo)
+   );
+}
+
+function <<functionType.NormalizeRequiredFunction>>
+   meta::pure::dsl::dataframe::rows(offsetFrom: UnboundedFrameValue[1], offsetTo: Integer[1]): Rows[1]
+{
+   ^Rows(offsetFrom = $offsetFrom, offsetTo = ^FrameIntValue(value = $offsetTo));
+}
+
+function <<functionType.NormalizeRequiredFunction>>
+   meta::pure::dsl::dataframe::rows(offsetFrom: Integer[1], offsetTo: UnboundedFrameValue[1]): Rows[1]
+{
+   ^Rows(offsetFrom = ^FrameIntValue(value = $offsetFrom), offsetTo = $offsetTo);
+}
+
+function <<functionType.NormalizeRequiredFunction>>
+   meta::pure::dsl::dataframe::rows(offsetFrom: UnboundedFrameValue[1], offsetTo: UnboundedFrameValue[1]): Rows[1]
+{
+   ^Rows(offsetFrom = $offsetFrom, offsetTo = $offsetTo);
+}
+
+function <<functionType.NormalizeRequiredFunction>>
+   meta::pure::dsl::dataframe::range(offsetFrom: Integer[1], offsetTo: Integer[1]): Range[1]
+{
+   ^Range(
+      offsetFrom = ^FrameIntValue(value = $offsetFrom),
+      offsetTo = ^FrameIntValue(value = $offsetTo)
+   );
+}
+
+function <<functionType.NormalizeRequiredFunction>>
+   meta::pure::dsl::dataframe::range(offsetFrom: UnboundedFrameValue[1], offsetTo: Integer[1]): Range[1]
+{
+   ^Range(offsetFrom = $offsetFrom, offsetTo = ^FrameIntValue(value = $offsetTo));
+}
+
+function <<functionType.NormalizeRequiredFunction>>
+   meta::pure::dsl::dataframe::range(offsetFrom: Integer[1], offsetTo: UnboundedFrameValue[1]): Range[1]
+{
+   ^Range(offsetFrom = ^FrameIntValue(value = $offsetFrom), offsetTo = $offsetTo);
+}
+
+function <<functionType.NormalizeRequiredFunction>>
+   meta::pure::dsl::dataframe::range(offsetFrom: UnboundedFrameValue[1], offsetTo: UnboundedFrameValue[1]): Range[1]
+{
+   ^Range(offsetFrom = $offsetFrom, offsetTo = $offsetTo);
+}
+
+function <<functionType.NormalizeRequiredFunction>>
+   meta::pure::dsl::dataframe::unbounded(): UnboundedFrameValue[1]
+{
+   ^UnboundedFrameValue();
+}

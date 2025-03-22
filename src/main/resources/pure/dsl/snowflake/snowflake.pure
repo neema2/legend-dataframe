@@ -25,15 +25,36 @@ import meta::pure::dsl::snowflake::*;
 // Main function to generate Snowflake SQL from a DataFrame
 function meta::pure::dsl::snowflake::generateSnowflakeSQL(df: DataFrame[1]): String[1]
 {
+   // Snowflake supports all features - use standardized feature support map
+   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap([
+      pair('PIVOT', true),
+      pair('UNPIVOT', true),
+      pair('MATCH_RECOGNIZE', true),
+      pair('LATERAL_JOIN', true),
+      pair('AT', true),
+      pair('CHANGES', true),
+      pair('CONNECT_BY', true),
+      pair('SAMPLE', true),
+      pair('QUALIFY', true)
+   ]);
+   
+   // No errors should be thrown since all features are supported
+   meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'Snowflake', $supportedFeatures);
+   
    let withClause = $df->generateWithClause();
    $withClause + 
    $df->generateSelectClause() + 
    $df->generateFromClause() + 
    $df->generateWhereClause() + 
+   $df->generateSampleClause() +  // Add SAMPLE
    $df->generateGroupByClause() + 
    $df->generateHavingClause() + 
+   $df->generateQualifyClause() +  // Add QUALIFY
    $df->generateOrderByClause() + 
-   $df->generateLimitOffsetClause()
+   $df->generateLimitOffsetClause() +
+   $df->generateAtClause() +       // Add AT
+   $df->generateChangesClause() +  // Add CHANGES 
+   $df->generateConnectByClause()  // Add CONNECT BY
 }
 
 // Generate the SELECT clause
@@ -50,7 +71,10 @@ function <<access.private>> meta::pure::dsl::snowflake::generateFromClause(df: D
 {
    if($df.source->isEmpty(), 
       '', 
-      '\nFROM ' + $df.source->toOne()->generateSnowflakeDataSource())
+      '\nFROM ' + $df.source->toOne()->generateSnowflakeDataSource() + 
+      $df->generatePivotClause() + 
+      $df->generateUnpivotClause() + 
+      $df->generateMatchRecognizeClause())
 }
 
 // Generate the WHERE clause
@@ -93,6 +117,82 @@ function <<access.private>> meta::pure::dsl::snowflake::generateLimitOffsetClaus
    $limitClause + $offsetClause;
 }
 
+// Generate SAMPLE clause
+function <<access.private>> meta::pure::dsl::snowflake::generateSampleClause(df: DataFrame[1]): String[1]
+{
+   if($df.sample->isEmpty(), 
+      '', 
+      '\nSAMPLE (' + $df.sample->toOne() + ')')
+}
+
+// Generate QUALIFY clause
+function <<access.private>> meta::pure::dsl::snowflake::generateQualifyClause(df: DataFrame[1]): String[1]
+{
+   if($df.qualify->isEmpty(), 
+      '', 
+      '\nQUALIFY ' + $df.qualify->toOne()->generateSnowflakeExpression())
+}
+
+// Generate AT clause
+function <<access.private>> meta::pure::dsl::snowflake::generateAtClause(df: DataFrame[1]): String[1]
+{
+   if($df.at->isEmpty(), 
+      '', 
+      '\nAT(' + $df.at->toOne() + ')')
+}
+
+// Generate CHANGES clause
+function <<access.private>> meta::pure::dsl::snowflake::generateChangesClause(df: DataFrame[1]): String[1]
+{
+   if($df.changes->isEmpty(), 
+      '', 
+      '\nCHANGES(' + $df.changes->toOne() + ')')
+}
+
+// Generate CONNECT BY clause
+function <<access.private>> meta::pure::dsl::snowflake::generateConnectByClause(df: DataFrame[1]): String[1]
+{
+   if($df.connectBy->isEmpty(), 
+      '', 
+      '\nCONNECT BY ' + $df.connectBy->toOne()->generateSnowflakeExpression())
+}
+
+// Generate PIVOT clause
+function <<access.private>> meta::pure::dsl::snowflake::generatePivotClause(df: DataFrame[1]): String[1]
+{
+   if($df.pivot->isEmpty(), 
+      '', 
+      ' PIVOT(' + 
+         $df.pivot->toOne().aggregation->generateSnowflakeExpression() + 
+         ' FOR ' + $df.pivot->toOne().forColumn->generateSnowflakeExpression() + 
+         ' IN (' + $df.pivot->toOne().inValues->map(v | $v->generateSnowflakeExpression())->joinStrings(', ') + '))')
+}
+
+// Generate UNPIVOT clause
+function <<access.private>> meta::pure::dsl::snowflake::generateUnpivotClause(df: DataFrame[1]): String[1]
+{
+   if($df.unpivot->isEmpty(), 
+      '', 
+      ' UNPIVOT(' + 
+         $df.unpivot->toOne().valueColumn + 
+         ' FOR ' + $df.unpivot->toOne().nameColumn + 
+         ' IN (' + $df.unpivot->toOne().columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', ') + '))')
+}
+
+// Generate MATCH_RECOGNIZE clause
+function <<access.private>> meta::pure::dsl::snowflake::generateMatchRecognizeClause(df: DataFrame[1]): String[1]
+{
+   if($df.matchRecognize->isEmpty(), 
+      '', 
+      ' MATCH_RECOGNIZE(' + 
+         'PARTITION BY ' + $df.matchRecognize->toOne().partitionBy->map(c | $c->generateSnowflakeExpression())->joinStrings(', ') + 
+         ' ORDER BY ' + $df.matchRecognize->toOne().orderBy->map(o | $o.expression->generateSnowflakeExpression() + if($o.direction == SortDirection.DESC, ' DESC', ''))->joinStrings(', ') + 
+         ' MEASURES ' + $df.matchRecognize->toOne().measures->map(m | $m.expression->generateSnowflakeExpression() + ' AS ' + $m.alias)->joinStrings(', ') + 
+         ' PATTERN (' + $df.matchRecognize->toOne().pattern + ')' + 
+         ' DEFINE ' + $df.matchRecognize->toOne().define->map(d | $d.first + ' AS ' + $d.second->generateSnowflakeExpression())->joinStrings(', ') + 
+      ')')
+}
+
 // Generate the WITH clause
 function <<access.private>> meta::pure::dsl::snowflake::generateWithClause(df: DataFrame[1]): String[1]
 {
@@ -114,8 +214,22 @@ function <<access.private>> meta::pure::dsl::snowflake::generateWithClause(df: D
 function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeDataSource(source: DataSource[1]): String[1]
 {
    $source->match([
-      t: TableReference[1] | if($t.schema->isNotEmpty(), $t.schema->toOne() + '.', '') + $t.tableName + if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), ''),
-      j: JoinOperation[1] | $j.left->generateSnowflakeDataSource() + ' ' + $j.joinType->generateSnowflakeJoinType() + ' ' + $j.right->generateSnowflakeDataSource() + ' ON ' + $j.condition->generateSnowflakeExpression(),
+      t: TableReference[1] | 
+         if($t.tableName == 'inline_tds' && $t.inlineTDSData->isNotEmpty(),
+            | '(SELECT ' + $t.inlineTDSData->toOne().columns->joinStrings(', ') + ' FROM VALUES ' + 
+              $t.inlineTDSData->toOne().rows->map(row | 
+                 '(' + $row->map(cell | generateSnowflakeLiteral($cell))->joinStrings(', ') + ')'
+               )->joinStrings(', ') + ')' + 
+               if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), ''),
+            | if($t.schema->isNotEmpty(), $t.schema->toOne() + '.', '') + $t.tableName + if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), '')
+         ),
+      j: JoinOperation[1] | 
+         let joinType = $j.joinType->generateSnowflakeJoinType();
+         let joinCondition = if($j.usingColumns->isNotEmpty(),
+                                'USING (' + $j.usingColumns->joinStrings(', ') + ')',
+                                'ON ' + $j.condition->generateSnowflakeExpression());
+         $j.left->generateSnowflakeDataSource() + ' ' + $joinType + ' ' + $j.right->generateSnowflakeDataSource() + ' ' + $joinCondition,
+      l: LateralJoin[1] | $l.left->generateSnowflakeDataSource() + ' ' + $l.joinType->generateSnowflakeJoinType() + ' LATERAL ' + $l.right->generateSnowflakeDataSource() + ' ON ' + $l.condition->generateSnowflakeExpression(),
       s: SubquerySource[1] | '(' + $s.dataFrame->generateSnowflakeSQL() + ') AS ' + $s.alias,
       d: DataSource[1] | 'UNKNOWN_SOURCE_TYPE'
    ])
@@ -305,4 +419,38 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSQLFromWindowSpe
                    'ORDER BY ' + $windowSpec.orderBy->joinStrings(', '));
    
    $partitionBy + $orderBy;
+}
+
+// Add handling for _Window
+function meta::pure::dsl::snowflake::generateWindowSpecSQL(windowSpec: _Window<Any>[1]): String[1]
+{
+   // Use central implementation
+   meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateSnowflakeExpression($e)});
+}
+
+function meta::pure::dsl::snowflake::generateFrameSQL(frame: Frame[1]): String[1]
+{
+   // Use central implementation
+   meta::pure::dsl::dataframe::generateFrameSQL($frame);
+}
+
+function meta::pure::dsl::snowflake::generateFrameValueSQL(frameValue: FrameValue[1]): String[1]
+{
+   // Use central implementation
+   meta::pure::dsl::dataframe::generateFrameValueSQL($frameValue);
+}
+
+// Handle inline TDS in Snowflake SQL generation
+function meta::pure::dsl::snowflake::handleInlineTDS(df: DataFrame[1]): String[1]
+{
+   if($df.source->instanceOf(TableReference) && $df.source->cast(@TableReference).tableName == 'inline_tds',
+      |'(SELECT ' + $df.columns->map(c | $c.name)->joinStrings(', ') + ' FROM VALUES ' + $df->getInlineTDSValues() + ')',
+      |$df.source->generateFromClause()
+   )
+}
+
+// Helper function to get inline TDS values
+function meta::pure::dsl::snowflake::getInlineTDSValues(df: DataFrame[1]): String[1]
+{
+   meta::pure::dsl::dataframe::getInlineTDSValues($df);
 }

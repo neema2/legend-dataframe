@@ -1,0 +1,88 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::window::*;
+import meta::pure::dsl::dataframe::metamodel::frame::*;
+
+function meta::pure::dsl::examples::advancedExamples(): Any[*]
+{
+   // Create an inline TDS with financial data
+   let financialData = #TDS
+                       date, ticker, price, volume, sector
+                       '2023-01-01', 'AAPL', 150.00, 1000000, 'Technology'
+                       '2023-01-01', 'MSFT', 250.00, 800000, 'Technology'
+                       '2023-01-01', 'JPM', 130.00, 600000, 'Finance'
+                       '2023-01-02', 'AAPL', 152.00, 1200000, 'Technology'
+                       '2023-01-02', 'MSFT', 248.00, 750000, 'Technology'
+                       '2023-01-02', 'JPM', 132.00, 650000, 'Finance'
+                       '2023-01-03', 'AAPL', 155.00, 1300000, 'Technology'
+                       '2023-01-03', 'MSFT', 252.00, 900000, 'Technology'
+                       '2023-01-03', 'JPM', 135.00, 700000, 'Finance'
+                      #;
+   
+   // Example 1: Complex window function with multiple partitions and ordering
+   // Calculate percent change from previous day by ticker
+   let percentChange = $financialData->extend([
+      (price / lag(~price, 1)->over([~ticker], [asc(~date)]) - 1.0) * 100.0->as('percent_change')
+   ]);
+   
+   // Example 2: Multiple window functions with different frames
+   // Calculate various moving averages
+   let movingAverages = $financialData->extend([
+      avg(~price)->over([~ticker], [asc(~date)], rows(-2, 0))->as('3day_ma'),
+      avg(~price)->over([~ticker], [asc(~date)], rows(-4, 0))->as('5day_ma'),
+      avg(~price)->over([~ticker], [asc(~date)], rows(-9, 0))->as('10day_ma')
+   ]);
+   
+   // Example 3: Combining window functions with filtering
+   // Find stocks with price above sector average
+   let aboveSectorAvg = $financialData->extend([
+      avg(~price)->over(~sector)->as('sector_avg_price')
+   ])->filter({row | $row.price > $row.sector_avg_price});
+   
+   // Example 4: Complex ranking with ties
+   // Rank stocks by volume within sector
+   let volumeRanking = $financialData->extend([
+      rank()->over([~sector], [desc(~volume)])->as('volume_rank'),
+      dense_rank()->over([~sector], [desc(~volume)])->as('volume_dense_rank'),
+      percent_rank()->over([~sector], [desc(~volume)])->as('volume_percent_rank')
+   ]);
+   
+   // Example 5: Cumulative distribution
+   // Calculate percentile of each stock's price within its sector
+   let pricePercentile = $financialData->extend([
+      cume_dist()->over([~sector], [asc(~price)])->as('price_percentile')
+   ]);
+   
+   // Example 6: First and last values in partition
+   // Get first and last price for each ticker
+   let firstLastPrice = $financialData->extend([
+      first_value(~price)->over([~ticker], [asc(~date)])->as('first_price'),
+      last_value(~price)->over([~ticker], [asc(~date)], rows(unbounded(), unbounded()))->as('last_price')
+   ]);
+   
+   // Example 7: Ntile function
+   // Divide stocks into quartiles by price within sector
+   let priceQuartiles = $financialData->extend([
+      ntile(4)->over([~sector], [asc(~price)])->as('price_quartile')
+   ]);
+   
+   // Generate SQL for DuckDB and Snowflake
+   let duckSQL = $percentChange->generateDuckDBSQL();
+   let snowflakeSQL = $movingAverages->generateSnowflakeSQL();
+   
+   [$percentChange, $movingAverages, $aboveSectorAvg, $volumeRanking, $pricePercentile, $firstLastPrice, $priceQuartiles, $duckSQL, $snowflakeSQL];
+}

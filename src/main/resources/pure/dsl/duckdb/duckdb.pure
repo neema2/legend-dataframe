@@ -25,13 +25,30 @@ import meta::pure::dsl::duckdb::*;
 // Main function to generate DuckDB SQL from a DataFrame
 function meta::pure::dsl::duckdb::generateDuckDBSQL(df: DataFrame[1]): String[1]
 {
+   // Check for unsupported features using standardized error handling
+   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap([
+      pair('PIVOT', false),
+      pair('UNPIVOT', false),
+      pair('MATCH_RECOGNIZE', false),
+      pair('LATERAL_JOIN', false),
+      pair('AT', false),
+      pair('CHANGES', false),
+      pair('CONNECT_BY', false),
+      pair('SAMPLE', true),
+      pair('QUALIFY', true)
+   ]);
+   
+   meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'DuckDB', $supportedFeatures);
+   
    let withClause = $df->generateWithClause();
    $withClause + 
    $df->generateSelectClause() + 
    $df->generateFromClause() + 
    $df->generateWhereClause() + 
+   $df->generateSampleClause() +  // Add SAMPLE - DuckDB supports this
    $df->generateGroupByClause() + 
    $df->generateHavingClause() + 
+   $df->generateQualifyClause() +  // Add QUALIFY - DuckDB supports this
    $df->generateOrderByClause() + 
    $df->generateLimitOffsetClause()
 }
@@ -39,7 +56,8 @@ function meta::pure::dsl::duckdb::generateDuckDBSQL(df: DataFrame[1]): String[1]
 // Generate the SELECT clause
 function <<access.private>> meta::pure::dsl::duckdb::generateSelectClause(df: DataFrame[1]): String[1]
 {
-   'SELECT ' + if($df.distinct == true, 'DISTINCT ', '') + 
+   'SELECT ' + if($df.distinct == true, 'DISTINCT ', '') +
+   if($df.distinctOn->isNotEmpty(), 'ON (' + $df.distinctOn->map(e | $e->generateDuckDBExpression())->joinStrings(', ') + ') ', '') +
    if($df.columns->isEmpty(), 
       '*', 
       $df.columns->map(c | $c.expression->generateDuckDBExpression() + if($c.alias->isNotEmpty(), ' AS ' + $c.alias->toOne(), ''))->joinStrings(', '))
@@ -93,6 +111,22 @@ function <<access.private>> meta::pure::dsl::duckdb::generateLimitOffsetClause(d
    $limitClause + $offsetClause;
 }
 
+// Generate SAMPLE clause
+function <<access.private>> meta::pure::dsl::duckdb::generateSampleClause(df: DataFrame[1]): String[1]
+{
+   if($df.sample->isEmpty(), 
+      '', 
+      '\nTABLESAMPLE ' + $df.sample->toOne() + '%')
+}
+
+// Generate QUALIFY clause
+function <<access.private>> meta::pure::dsl::duckdb::generateQualifyClause(df: DataFrame[1]): String[1]
+{
+   if($df.qualify->isEmpty(), 
+      '', 
+      '\nQUALIFY ' + $df.qualify->toOne()->generateDuckDBExpression())
+}
+
 // Generate the WITH clause
 function <<access.private>> meta::pure::dsl::duckdb::generateWithClause(df: DataFrame[1]): String[1]
 {
@@ -114,8 +148,20 @@ function <<access.private>> meta::pure::dsl::duckdb::generateWithClause(df: Data
 function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBDataSource(source: DataSource[1]): String[1]
 {
    $source->match([
-      t: TableReference[1] | if($t.schema->isNotEmpty(), $t.schema->toOne() + '.', '') + $t.tableName + if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), ''),
-      j: JoinOperation[1] | $j.left->generateDuckDBDataSource() + ' ' + $j.joinType->generateDuckDBJoinType() + ' ' + $j.right->generateDuckDBDataSource() + ' ON ' + $j.condition->generateDuckDBExpression(),
+      t: TableReference[1] | 
+         if($t.tableName == 'inline_tds' && $t.inlineTDSData->isNotEmpty(),
+            | '(VALUES ' + $t.inlineTDSData->toOne().rows->map(row | 
+                 '(' + $row->map(cell | generateDuckDBLiteral($cell))->joinStrings(', ') + ')'
+               )->joinStrings(', ') + ') AS ' + if($t.alias->isNotEmpty(), $t.alias->toOne(), 'inline_tds') + 
+               '(' + $t.inlineTDSData->toOne().columns->joinStrings(', ') + ')',
+            | if($t.schema->isNotEmpty(), $t.schema->toOne() + '.', '') + $t.tableName + if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), '')
+         ),
+      j: JoinOperation[1] | 
+         let joinType = $j.joinType->generateDuckDBJoinType();
+         let joinCondition = if($j.usingColumns->isNotEmpty(),
+                                'USING (' + $j.usingColumns->joinStrings(', ') + ')',
+                                'ON ' + $j.condition->generateDuckDBExpression());
+         $j.left->generateDuckDBDataSource() + ' ' + $joinType + ' ' + $j.right->generateDuckDBDataSource() + ' ' + $joinCondition,
       s: SubquerySource[1] | '(' + $s.dataFrame->generateDuckDBSQL() + ') AS ' + $s.alias,
       d: DataSource[1] | 'UNKNOWN_SOURCE_TYPE'
    ])
@@ -305,4 +351,38 @@ function <<access.private>> meta::pure::dsl::duckdb::generateSQLFromWindowSpec(w
                    'ORDER BY ' + $windowSpec.orderBy->joinStrings(', '));
    
    $partitionBy + $orderBy;
+}
+
+// Add handling for _Window
+function meta::pure::dsl::duckdb::generateWindowSpecSQL(windowSpec: _Window<Any>[1]): String[1]
+{
+   // Use central implementation
+   meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateDuckDBExpression($e)});
+}
+
+function meta::pure::dsl::duckdb::generateFrameSQL(frame: Frame[1]): String[1]
+{
+   // Use central implementation
+   meta::pure::dsl::dataframe::generateFrameSQL($frame);
+}
+
+function meta::pure::dsl::duckdb::generateFrameValueSQL(frameValue: FrameValue[1]): String[1]
+{
+   // Use central implementation
+   meta::pure::dsl::dataframe::generateFrameValueSQL($frameValue);
+}
+
+// Handle inline TDS in DuckDB SQL generation
+function meta::pure::dsl::duckdb::handleInlineTDS(df: DataFrame[1]): String[1]
+{
+   if($df.source->instanceOf(TableReference) && $df.source->cast(@TableReference).tableName == 'inline_tds',
+      |'(VALUES ' + $df->getInlineTDSValues() + ') AS inline_tds(' + $df.columns->map(c | $c.name)->joinStrings(', ') + ')',
+      |$df.source->generateFromClause()
+   )
+}
+
+// Helper function to get inline TDS values
+function meta::pure::dsl::duckdb::getInlineTDSValues(df: DataFrame[1]): String[1]
+{
+   meta::pure::dsl::dataframe::getInlineTDSValues($df);
 }

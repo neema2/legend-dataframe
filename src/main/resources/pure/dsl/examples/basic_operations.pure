@@ -1,0 +1,51 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+
+function meta::pure::dsl::examples::basicOperations(): Any[*]
+{
+   // Create a DataFrame from a table
+   let employees = table('employees');
+   
+   // Filter rows using type-safe filter function with lambda
+   let highPaid = $employees->filter({e | $e.salary > 50000});
+   
+   // Select specific columns using tilde notation
+   let nameAndDept = $employees->select({e | [~id, ~name, ~department]});
+   
+   // Group by and aggregate
+   let deptSummary = $employees->groupBy([~department])
+                              ->extend([
+                                 avg(~salary)->as('avg_salary'),
+                                 count()->as('employee_count')
+                              ]);
+   
+   // Join with another table
+   let departments = table('departments');
+   let joined = $employees->join($departments, {e, d | $e.department_id == $d.id})
+                         ->select({row | [~id, ~name, ~department_name, ~salary]});
+   
+   // Order by multiple columns
+   let ordered = $employees->orderBy([desc(~salary), asc(~name)]);
+   
+   // Limit results
+   let topFive = $employees->orderBy([desc(~salary)])->limit(5);
+   
+   // Generate SQL for different databases
+   let duckSQL = $deptSummary->generateDuckDBSQL();
+   let snowflakeSQL = $deptSummary->generateSnowflakeSQL();
+   
+   [$highPaid, $nameAndDept, $deptSummary, $joined, $ordered, $topFive, $duckSQL, $snowflakeSQL];
+}

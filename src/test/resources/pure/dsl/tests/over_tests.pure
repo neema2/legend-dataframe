@@ -1,0 +1,177 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::window::*;
+import meta::pure::dsl::dataframe::metamodel::frame::*;
+import meta::pure::dsl::duckdb::*;
+import meta::pure::dsl::snowflake::*;
+
+function <<test.Test>> meta::pure::dsl::tests::testNewOverFunction(): Boolean[1]
+{
+   // Test inline TDS definition with over function
+   let df = #TDS
+            id, name, salary, department
+            1, 'John', 50000, 'Engineering'
+            2, 'Jane', 60000, 'Sales'
+            3, 'Bob', 55000, 'Engineering'
+            4, 'Alice', 65000, 'Sales'
+           #;
+   
+   // Test over with ColSpec
+   let colSpec = ~department;
+   let window1 = over($colSpec);
+   assertEquals(['department'], $window1.partition);
+   
+   // Test over with ColSpecArray
+   let colSpecArray = [~department, ~salary];
+   let window2 = over($colSpecArray);
+   assertEquals(['department', 'salary'], $window2.partition);
+   
+   // Test over with SortInfo
+   let sortInfo = asc(~salary);
+   let window3 = over([$sortInfo]);
+   assertEquals('salary', $window3.sortInfo->at(0).column);
+   assertEquals(meta::pure::dsl::dataframe::metamodel::window::SortDirection.ASC, $window3.sortInfo->at(0).direction);
+   
+   // Test over with Frame
+   let frame = rows(unbounded(), 0);
+   let window4 = over($frame);
+   assertEquals(true, $window4.frame->isNotEmpty());
+   
+   // Test complete window specification
+   let window5 = over([~department], [asc(~salary)], rows(unbounded(), 0));
+   
+   // Test SQL generation
+   let avgSalary = avg(col('salary'));
+   let rankExpr = rank();
+   
+   let dfWithWindow = $df
+      ->extend([
+         $avgSalary->over($window5)->as('avg_salary'),
+         $rankExpr->over($window5)->as('salary_rank')
+      ]);
+   
+   let sql = $dfWithWindow->generateDuckDBSQL();
+   assertTrue($sql->contains('PARTITION BY department'));
+   assertTrue($sql->contains('ORDER BY salary'));
+   assertTrue($sql->contains('ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testFrameTypes(): Boolean[1]
+{
+   // Test different frame types
+   let rowsFrame = rows(unbounded(), currentRow());
+   let rangeFrame = range(-5, 5);
+   
+   // Test with window functions
+   let df = #TDS
+            id, name, salary, department
+            1, 'John', 50000, 'Engineering'
+            2, 'Jane', 60000, 'Sales'
+            3, 'Bob', 55000, 'Engineering'
+            4, 'Alice', 65000, 'Sales'
+           #;
+   
+   // Test with rows frame
+   let window1 = over([asc(~id)], $rowsFrame);
+   let dfWithRowsFrame = $df->extend([
+      sum(col('salary'))->over($window1)->as('running_sum')
+   ]);
+   
+   let sql1 = $dfWithRowsFrame->generateDuckDBSQL();
+   assertTrue($sql1->contains('ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW'));
+   
+   // Test with range frame
+   let window2 = over([asc(~id)], $rangeFrame);
+   let dfWithRangeFrame = $df->extend([
+      avg(col('salary'))->over($window2)->as('moving_avg')
+   ]);
+   
+   let sql2 = $dfWithRangeFrame->generateDuckDBSQL();
+   assertTrue($sql2->contains('RANGE BETWEEN 5 PRECEDING AND 5 FOLLOWING'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testFrameValues(): Boolean[1]
+{
+   // Test different frame values
+   let unboundedPrecedingValue = unbounded();
+   let currentRowValue = 0;
+   let precedingValue = -3;
+   let followingValue = 3;
+   
+   // Create frames with different combinations
+   let frame1 = rows($unboundedPrecedingValue, $currentRowValue);
+   let frame2 = rows($precedingValue, $followingValue);
+   let frame3 = range($unboundedPrecedingValue, $followingValue);
+   
+   // Test with window functions
+   let df = #TDS
+            id, name, salary, department
+            1, 'John', 50000, 'Engineering'
+            2, 'Jane', 60000, 'Sales'
+            3, 'Bob', 55000, 'Engineering'
+            4, 'Alice', 65000, 'Sales'
+           #;
+   
+   // Test with different frames
+   let window1 = over([asc(~id)], $frame1);
+   let window2 = over([asc(~id)], $frame2);
+   let window3 = over([asc(~id)], $frame3);
+   
+   let dfWithFrames = $df->extend([
+      sum(col('salary'))->over($window1)->as('sum1'),
+      sum(col('salary'))->over($window2)->as('sum2'),
+      sum(col('salary'))->over($window3)->as('sum3')
+   ]);
+   
+   let sql = $dfWithFrames->generateDuckDBSQL();
+   assertTrue($sql->contains('ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW'));
+   assertTrue($sql->contains('ROWS BETWEEN 3 PRECEDING AND 3 FOLLOWING'));
+   assertTrue($sql->contains('RANGE BETWEEN UNBOUNDED PRECEDING AND 3 FOLLOWING'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testSnowflakeWindowSQL(): Boolean[1]
+{
+   // Test Snowflake SQL generation for window functions
+   let df = #TDS
+            id, name, salary, department
+            1, 'John', 50000, 'Engineering'
+            2, 'Jane', 60000, 'Sales'
+            3, 'Bob', 55000, 'Engineering'
+            4, 'Alice', 65000, 'Sales'
+           #;
+   
+   // Create window with partition, sort, and frame
+   let window = over([~department], [desc(~salary)], rows(unbounded(), 0));
+   
+   let dfWithWindow = $df->extend([
+      rank()->over($window)->as('rank'),
+      avg(col('salary'))->over($window)->as('avg_salary')
+   ]);
+   
+   let sql = $dfWithWindow->generateSnowflakeSQL();
+   assertTrue($sql->contains('PARTITION BY department'));
+   assertTrue($sql->contains('ORDER BY salary DESC'));
+   assertTrue($sql->contains('ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW'));
+   
+   true;
+}

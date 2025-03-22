@@ -1,0 +1,170 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::bigquery::*;
+
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryStructValueOutput(): Boolean[1]
+{
+   // Test SELECT AS STRUCT
+   let dfStruct = table('employees')->asStruct();
+   let sqlStruct = $dfStruct->generateBigQuerySQL();
+   assert($sqlStruct->contains('SELECT AS STRUCT *'), 'BigQuery SQL should generate AS STRUCT selector');
+   
+   // Test SELECT AS VALUE
+   let dfValue = table('employees')->asValue();
+   let sqlValue = $dfValue->generateBigQuerySQL();
+   assert($sqlValue->contains('SELECT AS VALUE *'), 'BigQuery SQL should generate AS VALUE selector');
+   
+   // Test error handling in other databases
+   let errorThrown = false;
+   try
+   {
+      $dfStruct->generateSnowflakeSQL();
+   }
+   catch(e: Exception[1])
+   {
+      $errorThrown = $e.message->contains('SELECT AS STRUCT is not supported in Snowflake');
+   }
+   assert($errorThrown, 'Snowflake SQL generation should throw error for unsupported AS STRUCT feature');
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryExceptReplace(): Boolean[1]
+{
+   // Test SELECT * EXCEPT
+   let dfExcept = table('employees')->except(['id', 'created_at']);
+   let sqlExcept = $dfExcept->generateBigQuerySQL();
+   assert($sqlExcept->contains('* EXCEPT (id, created_at)'), 'BigQuery SQL should generate EXCEPT clause');
+   
+   // Test SELECT * REPLACE
+   let replacements = newMap([
+      pair('salary', literal(0)),
+      pair('age', ^FunctionExpression(functionName = 'CAST', parameters = [col('age'), literal('INT64')]))
+   ]);
+   let dfReplace = table('employees')->replace($replacements);
+   let sqlReplace = $dfReplace->generateBigQuerySQL();
+   assert($sqlReplace->contains('* REPLACE ('), 'BigQuery SQL should generate REPLACE clause');
+   assert($sqlReplace->contains('salary AS 0'), 'BigQuery SQL should replace salary with 0');
+   
+   // Test error handling in other databases
+   let errorThrown = false;
+   try
+   {
+      $dfExcept->generateDuckDBSQL();
+   }
+   catch(e: Exception[1])
+   {
+      $errorThrown = $e.message->contains('SELECT * EXCEPT is not supported in DuckDB');
+   }
+   assert($errorThrown, 'DuckDB SQL generation should throw error for unsupported EXCEPT feature');
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryDifferentialPrivacy(): Boolean[1]
+{
+   // Test WITH DIFFERENTIAL_PRIVACY
+   let df1 = table('employees')
+      ->select([~id, ~name, ~salary])
+      ->withDifferentialPrivacy(0.1, 0.01, 1.0);
+   
+   let sql1 = $df1->generateBigQuerySQL();
+   assert($sql1->contains('WITH DIFFERENTIAL_PRIVACY OPTIONS(epsilon=0.1, delta=0.01, kappa=1.0)'), 
+          'BigQuery SQL should generate DIFFERENTIAL_PRIVACY clause with epsilon, delta, and kappa');
+   
+   // Test WITH DIFFERENTIAL_PRIVACY with sensitivity
+   let df2 = table('employees')
+      ->select([~id, ~name, ~salary])
+      ->withDifferentialPrivacy(0.1, SensitivityType.SUM, 100.0);
+   
+   let sql2 = $df2->generateBigQuerySQL();
+   assert($sql2->contains('WITH DIFFERENTIAL_PRIVACY OPTIONS(epsilon=0.1, sensitivity_type=SUM, sensitivity_value=100.0)'), 
+          'BigQuery SQL should generate DIFFERENTIAL_PRIVACY clause with sensitivity');
+   
+   // Test error handling in other databases
+   let errorThrown = false;
+   try
+   {
+      $df1->generateSnowflakeSQL();
+   }
+   catch(e: Exception[1])
+   {
+      $errorThrown = $e.message->contains('WITH DIFFERENTIAL_PRIVACY is not supported in Snowflake');
+   }
+   assert($errorThrown, 'Snowflake SQL generation should throw error for unsupported DIFFERENTIAL_PRIVACY feature');
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryAggregationThreshold(): Boolean[1]
+{
+   // Test WITH AGGREGATION_THRESHOLD
+   let df1 = table('employees')
+      ->groupBy([~department])
+      ->extend([count(~id)->as('employee_count')])
+      ->withAggregationThreshold(10);
+   
+   let sql1 = $df1->generateBigQuerySQL();
+   assert($sql1->contains('WITH AGGREGATION_THRESHOLD 10'), 
+          'BigQuery SQL should generate AGGREGATION_THRESHOLD clause');
+   
+   // Test WITH AGGREGATION_THRESHOLD with replacement
+   let df2 = table('employees')
+      ->groupBy([~department])
+      ->extend([count(~id)->as('employee_count')])
+      ->withAggregationThreshold(10, 'NULL');
+   
+   let sql2 = $df2->generateBigQuerySQL();
+   assert($sql2->contains('WITH AGGREGATION_THRESHOLD 10 REPLACE WITH NULL'), 
+          'BigQuery SQL should generate AGGREGATION_THRESHOLD clause with replacement');
+   
+   // Test error handling in other databases
+   let errorThrown = false;
+   try
+   {
+      $df1->generateDuckDBSQL();
+   }
+   catch(e: Exception[1])
+   {
+      $errorThrown = $e.message->contains('WITH AGGREGATION_THRESHOLD is not supported in DuckDB');
+   }
+   assert($errorThrown, 'DuckDB SQL generation should throw error for unsupported AGGREGATION_THRESHOLD feature');
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryCombinedFeatures(): Boolean[1]
+{
+   // Test combining multiple BigQuery-specific features
+   let df = table('employees')
+      ->asStruct()
+      ->except(['created_at'])
+      ->replace(newMap([pair('salary', literal('REDACTED'))]))
+      ->withDifferentialPrivacy(0.1, 0.01, 1.0)
+      ->withAggregationThreshold(10);
+   
+   let sql = $df->generateBigQuerySQL();
+   
+   // Verify all features are included in the SQL
+   assert($sql->contains('SELECT AS STRUCT *'), 'Combined SQL should include AS STRUCT');
+   assert($sql->contains('EXCEPT (created_at)'), 'Combined SQL should include EXCEPT clause');
+   assert($sql->contains('REPLACE (salary AS REDACTED)'), 'Combined SQL should include REPLACE clause');
+   assert($sql->contains('WITH DIFFERENTIAL_PRIVACY'), 'Combined SQL should include DIFFERENTIAL_PRIVACY clause');
+   assert($sql->contains('WITH AGGREGATION_THRESHOLD'), 'Combined SQL should include AGGREGATION_THRESHOLD clause');
+   
+   true;
+}

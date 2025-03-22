@@ -1,0 +1,177 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::window::*;
+import meta::pure::dsl::duckdb::*;
+import meta::pure::dsl::snowflake::*;
+import meta::pure::dsl::bigquery::*;
+
+function <<test.Test>> meta::pure::dsl::tests::testInlineTDSGeneration(): Boolean[1]
+{
+   // Create an inline TDS DataFrame
+   let df = inlineTDS(['id', 'name', 'value'], [
+      [1, 'Alice', 100],
+      [2, 'Bob', 200],
+      [3, 'Charlie', 300]
+   ]);
+   
+   // Generate SQL for different databases
+   let duckSQL = $df->generateDuckDBSQL();
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   
+   // Verify SQL contains expected patterns
+   assert($duckSQL->contains('VALUES'), 'DuckDB SQL should use VALUES for inline TDS');
+   assert($snowflakeSQL->contains('VALUES'), 'Snowflake SQL should use VALUES for inline TDS');
+   assert($bigquerySQL->contains('UNNEST'), 'BigQuery SQL should use UNNEST for inline TDS');
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testWindowFunctionGeneration(): Boolean[1]
+{
+   // Create a DataFrame with window functions
+   let df = table('employees')
+      ->extend([
+         rowNumber()->over(partitionBy([~department]), orderBy([asc(~salary)]))->as('row_num'),
+         rank()->over(partitionBy([~department]), orderBy([asc(~salary)]))->as('rank_val'),
+         denseRank()->over(partitionBy([~department]), orderBy([asc(~salary)]))->as('dense_rank_val')
+      ]);
+   
+   // Generate SQL for different databases
+   let duckSQL = $df->generateDuckDBSQL();
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   
+   // Verify SQL contains expected patterns
+   assert($duckSQL->contains('ROW_NUMBER() OVER(PARTITION BY department ORDER BY salary)'), 'DuckDB SQL should generate correct window function');
+   assert($snowflakeSQL->contains('ROW_NUMBER() OVER(PARTITION BY department ORDER BY salary)'), 'Snowflake SQL should generate correct window function');
+   assert($bigquerySQL->contains('ROW_NUMBER() OVER(PARTITION BY department ORDER BY salary)'), 'BigQuery SQL should generate correct window function');
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testFrameWindowFunctionGeneration(): Boolean[1]
+{
+   // Create a DataFrame with window functions using frames
+   let df = table('employees')
+      ->extend([
+         sum(~salary)->over(
+            partitionBy([~department]), 
+            orderBy([asc(~hire_date)]),
+            rows(unbounded(), current())
+         )->as('running_total'),
+         avg(~salary)->over(
+            partitionBy([~department]), 
+            orderBy([asc(~hire_date)]),
+            rows(preceding(2), following(2))
+         )->as('moving_avg')
+      ]);
+   
+   // Generate SQL for different databases
+   let duckSQL = $df->generateDuckDBSQL();
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   
+   // Verify SQL contains expected patterns
+   assert($duckSQL->contains('ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW'), 'DuckDB SQL should generate correct frame specification');
+   assert($duckSQL->contains('ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING'), 'DuckDB SQL should generate correct frame specification');
+   assert($snowflakeSQL->contains('ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW'), 'Snowflake SQL should generate correct frame specification');
+   assert($snowflakeSQL->contains('ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING'), 'Snowflake SQL should generate correct frame specification');
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testErrorHandlingForUnsupportedFeatures(): Boolean[1]
+{
+   // Create a DataFrame with features not supported in DuckDB
+   let df = table('employees')
+      ->pivot(~department, sum(~salary), ['IT', 'HR', 'Sales']);
+   
+   // Verify that generating DuckDB SQL throws an error
+   let errorThrown = false;
+   try
+   {
+      $df->generateDuckDBSQL();
+   }
+   catch(e: Exception[1])
+   {
+      $errorThrown = $e.message->contains('PIVOT clause is not supported in DuckDB');
+   }
+   
+   assert($errorThrown, 'DuckDB SQL generation should throw error for unsupported PIVOT feature');
+   
+   // Verify that generating Snowflake SQL does not throw an error
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assert($snowflakeSQL->contains('PIVOT'), 'Snowflake SQL should support PIVOT clause');
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testHarmonizedSQLGeneration(): Boolean[1]
+{
+   // Create a complex DataFrame with multiple features
+   let df = table('employees')
+      ->filter({e | $e.salary > 50000})
+      ->join(table('departments'), {e, d | $e.department_id == $d.id})
+      ->select({row | [~id, ~name, ~department_name, ~salary]})
+      ->groupBy([~department_name])
+      ->extend([
+         count()->as('employee_count'),
+         avg(~salary)->as('avg_salary')
+      ])
+      ->orderBy([desc(~avg_salary)]);
+   
+   // Generate SQL for different databases
+   let duckSQL = $df->generateDuckDBSQL();
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   
+   // Verify SQL contains expected patterns for all databases
+   assert($duckSQL->contains('SELECT') && $duckSQL->contains('FROM') && $duckSQL->contains('WHERE') && 
+          $duckSQL->contains('GROUP BY') && $duckSQL->contains('ORDER BY'), 
+          'DuckDB SQL should contain all standard clauses');
+          
+   assert($snowflakeSQL->contains('SELECT') && $snowflakeSQL->contains('FROM') && $snowflakeSQL->contains('WHERE') && 
+          $snowflakeSQL->contains('GROUP BY') && $snowflakeSQL->contains('ORDER BY'), 
+          'Snowflake SQL should contain all standard clauses');
+          
+   assert($bigquerySQL->contains('SELECT') && $bigquerySQL->contains('FROM') && $bigquerySQL->contains('WHERE') && 
+          $bigquerySQL->contains('GROUP BY') && $bigquerySQL->contains('ORDER BY'), 
+          'BigQuery SQL should contain all standard clauses');
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testSnowflakeSpecificFeatures(): Boolean[1]
+{
+   // Create a DataFrame with Snowflake-specific features
+   let df = table('employees')
+      ->sample(10, 'BERNOULLI')
+      ->qualify({q | $q.row_number > 1});
+   
+   // Generate Snowflake SQL
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   
+   // Verify SQL contains expected patterns
+   assert($snowflakeSQL->contains('SAMPLE'), 'Snowflake SQL should support SAMPLE clause');
+   assert($snowflakeSQL->contains('QUALIFY'), 'Snowflake SQL should support QUALIFY clause');
+   
+   // Verify that generating DuckDB SQL for SAMPLE works (DuckDB supports it)
+   let duckSQL = $df->generateDuckDBSQL();
+   assert($duckSQL->contains('SAMPLE'), 'DuckDB SQL should support SAMPLE clause');
+   
+   true;
+}

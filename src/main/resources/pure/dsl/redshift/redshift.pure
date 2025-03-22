@@ -1,0 +1,308 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::column::*;
+import meta::pure::dsl::redshift::*;
+
+/**
+ * Redshift SQL generator for the DataFrame DSL
+ * This module provides functions to convert DataFrame objects to Redshift SQL syntax
+ */
+
+// Main function to generate Redshift SQL from a DataFrame
+function meta::pure::dsl::redshift::generateRedshiftSQL(df: DataFrame[1]): String[1]
+{
+   // Check for unsupported features using standardized error handling
+   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap([
+      pair('PIVOT', false),
+      pair('UNPIVOT', false),
+      pair('MATCH_RECOGNIZE', false),
+      pair('LATERAL_JOIN', true),
+      pair('AT', false),
+      pair('CHANGES', false),
+      pair('CONNECT_BY', true),
+      pair('SAMPLE', false),
+      pair('QUALIFY', true),
+      pair('STRUCT', false),
+      pair('VALUE', false),
+      pair('EXCEPT', false),
+      pair('REPLACE', false),
+      pair('DIFFERENTIAL_PRIVACY', false),
+      pair('AGGREGATION_THRESHOLD', false)
+   ]);
+   
+   meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'Redshift', $supportedFeatures);
+   
+   let withClause = $df->generateWithClause();
+   $withClause + 
+   $df->generateSelectClause() + 
+   $df->generateFromClause() + 
+   $df->generateWhereClause() + 
+   $df->generateGroupByClause() + 
+   $df->generateHavingClause() + 
+   $df->generateQualifyClause() +  // Add QUALIFY - Redshift supports this
+   $df->generateOrderByClause() + 
+   $df->generateLimitOffsetClause() +
+   $df->generateConnectByClause()   // Add CONNECT BY - Redshift supports this
+}
+
+// Generate the WITH clause
+function <<access.private>> meta::pure::dsl::redshift::generateWithClause(df: DataFrame[1]): String[1]
+{
+   if($df.ctes->isEmpty(), 
+      '', 
+      'WITH ' + $df.ctes->map(cte | 
+         if($cte.isRecursive, 
+            'RECURSIVE ', 
+            '') + 
+         $cte.name + if($cte.columns->isEmpty(), '', '(' + $cte.columns->joinStrings(', ') + ')') + ' AS (' + 
+         if($cte.query->instanceOf(DataFrame), 
+            meta::pure::dsl::redshift::generateRedshiftSQL($cte.query->cast(@DataFrame)), 
+            $cte.query->cast(@String)) + 
+         ')'
+      )->joinStrings(',\n') + '\n')
+}
+
+// Generate the SELECT clause
+function <<access.private>> meta::pure::dsl::redshift::generateSelectClause(df: DataFrame[1]): String[1]
+{
+   'SELECT ' + if($df.distinct == true, 'DISTINCT ', '') +
+   if($df.columns->isEmpty(), 
+      '*', 
+      $df.columns->map(c | $c.expression->generateRedshiftExpression() + if($c.alias->isNotEmpty(), ' AS ' + $c.alias->toOne(), ''))->joinStrings(', '))
+}
+
+// Generate the FROM clause
+function <<access.private>> meta::pure::dsl::redshift::generateFromClause(df: DataFrame[1]): String[1]
+{
+   if($df.source->isEmpty(), 
+      '', 
+      '\nFROM ' + $df.source->toOne()->generateRedshiftDataSource())
+}
+
+// Generate the WHERE clause
+function <<access.private>> meta::pure::dsl::redshift::generateWhereClause(df: DataFrame[1]): String[1]
+{
+   if($df.filter->isEmpty(), 
+      '', 
+      '\nWHERE ' + $df.filter->toOne()->generateRedshiftExpression())
+}
+
+// Generate the GROUP BY clause
+function <<access.private>> meta::pure::dsl::redshift::generateGroupByClause(df: DataFrame[1]): String[1]
+{
+   if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
+      '', 
+      '\nGROUP BY ' + $df.groupBy.columns->map(c | $c->generateRedshiftExpression())->joinStrings(', '))
+}
+
+// Generate the HAVING clause
+function <<access.private>> meta::pure::dsl::redshift::generateHavingClause(df: DataFrame[1]): String[1]
+{
+   if($df.having->isEmpty(), 
+      '', 
+      '\nHAVING ' + $df.having->toOne()->generateRedshiftExpression())
+}
+
+// Generate the QUALIFY clause
+function <<access.private>> meta::pure::dsl::redshift::generateQualifyClause(df: DataFrame[1]): String[1]
+{
+   if($df.qualify->isEmpty(), 
+      '', 
+      '\nQUALIFY ' + $df.qualify->toOne()->generateRedshiftExpression())
+}
+
+// Generate the ORDER BY clause
+function <<access.private>> meta::pure::dsl::redshift::generateOrderByClause(df: DataFrame[1]): String[1]
+{
+   if($df.orderBy->isEmpty(), 
+      '', 
+      '\nORDER BY ' + $df.orderBy->map(o | $o.expression->generateRedshiftExpression() + ' ' + $o.direction->toString())->joinStrings(', '))
+}
+
+// Generate the LIMIT and OFFSET clauses
+function <<access.private>> meta::pure::dsl::redshift::generateLimitOffsetClause(df: DataFrame[1]): String[1]
+{
+   let limitClause = if($df.limit->isEmpty(), '', '\nLIMIT ' + $df.limit->toOne()->toString());
+   let offsetClause = if($df.offset->isEmpty(), '', '\nOFFSET ' + $df.offset->toOne()->toString());
+   $limitClause + $offsetClause;
+}
+
+// Generate CONNECT BY clause
+function <<access.private>> meta::pure::dsl::redshift::generateConnectByClause(df: DataFrame[1]): String[1]
+{
+   if($df.connectBy->isEmpty(), 
+      '', 
+      '\nCONNECT BY ' + $df.connectBy->toOne()->generateRedshiftExpression())
+}
+
+// Generate SQL for a data source
+function <<access.private>> meta::pure::dsl::redshift::generateRedshiftDataSource(source: DataSource[1]): String[1]
+{
+   $source->match([
+      t: TableReference[1] | 
+         if($t.schema->isNotEmpty(), $t.schema->toOne() + '.', '') + $t.tableName + if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), ''),
+      j: JoinOperation[1] | 
+         let joinType = $j.joinType->generateRedshiftJoinType();
+         $j.left->generateRedshiftDataSource() + ' ' + $joinType + ' ' + $j.right->generateRedshiftDataSource() + ' ON ' + $j.condition->generateRedshiftExpression(),
+      s: SubquerySource[1] | '(' + $s.dataFrame->generateRedshiftSQL() + ') AS ' + $s.alias,
+      d: DataSource[1] | 'UNKNOWN_SOURCE_TYPE'
+   ])
+}
+
+// Generate SQL for join types
+function <<access.private>> meta::pure::dsl::redshift::generateRedshiftJoinType(joinType: JoinType[1]): String[1]
+{
+   $joinType->match([
+      JoinType.INNER | 'INNER JOIN',
+      JoinType.LEFT_OUTER | 'LEFT JOIN',
+      JoinType.RIGHT_OUTER | 'RIGHT JOIN',
+      JoinType.FULL_OUTER | 'FULL JOIN',
+      JoinType.CROSS | 'CROSS JOIN'
+   ])
+}
+
+// Generate SQL for expressions
+function <<access.private>> meta::pure::dsl::redshift::generateRedshiftExpression(expr: Expression[1]): String[1]
+{
+   $expr->match([
+      l: LiteralExpression[1] | $l.value->generateRedshiftLiteral(),
+      c: ColumnReference[1] | if($c.tableAlias->isNotEmpty(), $c.tableAlias->toOne() + '.', '') + $c.columnName,
+      f: FunctionExpression[1] | $f->generateRedshiftFunction(),
+      b: BinaryOperation[1] | '(' + $b.left->generateRedshiftExpression() + ' ' + $b.operator->generateRedshiftBinaryOperator() + ' ' + $b.right->generateRedshiftExpression() + ')',
+      u: UnaryOperation[1] | $u.operator->generateRedshiftUnaryOperator() + '(' + $u.expression->generateRedshiftExpression() + ')',
+      e: Expression[1] | 'UNKNOWN_EXPRESSION_TYPE'
+   ])
+}
+
+// Generate SQL for function expressions
+function <<access.private>> meta::pure::dsl::redshift::generateRedshiftFunction(func: FunctionExpression[1]): String[1]
+{
+   $func->match([
+      c: CountFunction[1] | 'COUNT(' + if($c.distinct == true, 'DISTINCT ', '') + $c.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + ')',
+      a: AggregateFunction[1] | $a.functionName->toUpperCase() + '(' + $a.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + ')',
+      w: WindowFunction[1] | $w->generateRedshiftWindowFunction(),
+      f: FunctionExpression[1] | $f.functionName + '(' + $f.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + ')'
+   ])
+}
+
+// Generate SQL for window functions
+function <<access.private>> meta::pure::dsl::redshift::generateRedshiftWindowFunction(func: WindowFunction[1]): String[1]
+{
+   let functionCall = $func->match([
+      r: RowNumberFunction[1] | 'ROW_NUMBER()',
+      r: RankFunction[1] | 'RANK()',
+      d: DenseRankFunction[1] | 'DENSE_RANK()',
+      l: LeadLagFunction[1] | $l.functionName->toUpperCase() + '(' + 
+                                $l.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') +
+                                if($l.offset->isNotEmpty(), ', ' + $l.offset->toOne()->generateRedshiftExpression(), '') + 
+                                if($l.defaultValue->isNotEmpty(), ', ' + $l.defaultValue->toOne()->generateRedshiftExpression(), '') +
+                                ')',
+      f: FirstLastValueFunction[1] | $f.functionName->toUpperCase() + '(' + 
+                                     $f.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + 
+                                     ')' + if($f.ignoreNulls == true, ' IGNORE NULLS', ''),
+      a: AggregateWindowFunction[1] | $a.functionName->toUpperCase() + '(' + 
+                                      $a.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + 
+                                      ')',
+      w: WindowFunction[1] | $w.functionName + '(' + 
+                            $w.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + 
+                            ')'
+   ]);
+   
+   $functionCall + ' OVER(' + $func.window->generateRedshiftWindow() + ')';
+}
+
+// Generate SQL for window specification
+function <<access.private>> meta::pure::dsl::redshift::generateRedshiftWindow(window: Window[1]): String[1]
+{
+   let partitionBy = if($window.partitionBy->isEmpty(), 
+                       '', 
+                       'PARTITION BY ' + $window.partitionBy->map(e | $e->generateRedshiftExpression())->joinStrings(', '));
+   
+   let orderBy = if($window.orderBy->isEmpty(), 
+                    '', 
+                    if($partitionBy->isEmpty(), '', ' ') + 
+                    'ORDER BY ' + $window.orderBy->map(o | $o.expression->generateRedshiftExpression() + ' ' + $o.direction->toString())->joinStrings(', '));
+   
+   let frame = if($window.frameType->isEmpty(), 
+                 '', 
+                 if($partitionBy->isEmpty() && $orderBy->isEmpty(), '', ' ') + 
+                 $window.frameType->toOne()->toString() + ' BETWEEN ' + 
+                 $window.frameStart->toOne()->generateRedshiftWindowFrameBound() + ' AND ' + 
+                 $window.frameEnd->toOne()->generateRedshiftWindowFrameBound());
+   
+   $partitionBy + $orderBy + $frame;
+}
+
+// Generate SQL for window frame bounds
+function <<access.private>> meta::pure::dsl::redshift::generateRedshiftWindowFrameBound(bound: WindowFrameBound[1]): String[1]
+{
+   $bound.type->match([
+      WindowFrameBoundType.UNBOUNDED_PRECEDING | 'UNBOUNDED PRECEDING',
+      WindowFrameBoundType.PRECEDING | $bound.offset->toOne()->toString() + ' PRECEDING',
+      WindowFrameBoundType.CURRENT_ROW | 'CURRENT ROW',
+      WindowFrameBoundType.FOLLOWING | $bound.offset->toOne()->toString() + ' FOLLOWING',
+      WindowFrameBoundType.UNBOUNDED_FOLLOWING | 'UNBOUNDED FOLLOWING'
+   ])
+}
+
+// Generate SQL for type-safe column specifications
+function <<access.private>> meta::pure::dsl::redshift::generateSQLFromColSpec<T>(colSpec: ColSpec<T>[1]): String[1]
+{
+   // For Redshift, quoted identifiers use double quotes
+   if($colSpec.name->contains(' '), 
+      '"' + $colSpec.name + '"', 
+      $colSpec.name
+   );
+}
+
+function <<access.private>> meta::pure::dsl::redshift::generateSQLFromColSpecArray<T>(colSpecs: ColSpecArray<T>[1]): String[1]
+{
+   // Handle column names with spaces by quoting them
+   $colSpecs.names->map(n | if($n->contains(' '), '"' + $n + '"', $n))->joinStrings(', ');
+}
+
+function <<access.private>> meta::pure::dsl::redshift::generateSQLFromFuncColSpec<F, Z>(funcColSpec: FuncColSpec<F, Z>[1]): String[1]
+{
+   $funcColSpec.name;
+}
+
+function <<access.private>> meta::pure::dsl::redshift::generateSQLFromAggColSpec<K, V, R>(aggColSpec: AggColSpec<K, V, R>[1]): String[1]
+{
+   let funcName = if($aggColSpec.name->startsWith('sum_'), 'SUM',
+                  if($aggColSpec.name->startsWith('avg_'), 'AVG',
+                  if($aggColSpec.name->startsWith('min_'), 'MIN',
+                  if($aggColSpec.name->startsWith('max_'), 'MAX',
+                  if($aggColSpec.name->startsWith('count_'), 'COUNT', 'UNKNOWN')))));
+   
+   let colName = $aggColSpec.name->substring($aggColSpec.name->indexOf('_') + 1, $aggColSpec.name->length());
+   
+   $funcName + '(' + $colName + ')';
+}
+
+function <<access.private>> meta::pure::dsl::redshift::generateSQLFromWindowSpec(windowSpec: WindowSpec[1]): String[1]
+{
+   let partitionBy = if($windowSpec.partitionBy->isEmpty(), 
+                      '', 
+                      'PARTITION BY ' + $windowSpec.partitionBy->joinStrings(', '));
+   
+   let orderBy = if($windowSpec.orderBy->isEmpty(), 
+                   '', 
+                   if($partitionBy->isEmpty(), '', ' ') + 
+                   'ORDER BY ' + $windowSpec.orderBy->joinStrings(', '));
+   
+   $partitionBy + $orderBy;
+}

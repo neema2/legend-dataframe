@@ -520,3 +520,23 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabricksClusterBy(): Boolea
    
    true;
 }
+
+function <<test.Test>> meta::pure::dsl::tests::testInlineTDS(): Boolean[1]
+{
+   // Test inline TDS definition
+   let df = #TDS
+            id, name, value
+            1, 'John', 100
+            2, 'Jane', 200
+            3, 'Bob', 300
+           #;
+   
+   // Test filtering on inline TDS
+   let filtered = $df->filter({x | $x.value > 100});
+   
+   // Test SQL generation
+   let sql = $filtered->generateDuckDBSQL();
+   assertEquals('SELECT id, name, value\nFROM inline_tds\nWHERE (value > 100)', $sql);
+   
+   true;
+}

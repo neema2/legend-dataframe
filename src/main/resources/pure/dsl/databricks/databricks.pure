@@ -217,7 +217,7 @@ function <<access.private>> meta::pure::dsl::databricks::generateDatabricksCase(
    ' END';
 }
 
-// Generate Databricks window function
+// Generate Databricks window function (legacy version for backward compatibility)
 function <<access.private>> meta::pure::dsl::databricks::generateDatabricksWindowFunction(windowFunc: WindowFunctionColumn[1]): String[1]
 {
    // Convert WindowFunctionColumn to WindowFunction and use common implementation
@@ -282,6 +282,12 @@ function <<access.private>> meta::pure::dsl::databricks::generateDatabricksUnpiv
 function <<access.private>> meta::pure::dsl::databricks::generateDatabricksWindowSpec(windowSpec: Window[1]): String[1]
 {
    meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateDatabricksExpression($e)});
+}
+
+// Generate Databricks window function with WindowFunction parameter
+function <<access.private>> meta::pure::dsl::databricks::generateDatabricksWindowFunction(func: WindowFunction[1]): String[1]
+{
+   meta::pure::dsl::dataframe::generateWindowFunctionSQL($func, {e | generateDatabricksExpression($e)}, {w | generateDatabricksWindowSpec($w)});
 }
 
 // Generate Databricks binary operators

@@ -254,7 +254,7 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryCase(case
    ' END';
 }
 
-// Generate BigQuery window function
+// Generate BigQuery window function (legacy version for backward compatibility)
 function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowFunction(windowFunc: WindowFunctionColumn[1]): String[1]
 {
    // Convert WindowFunctionColumn to WindowFunction and use common implementation
@@ -316,8 +316,8 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryUnpivot(u
    ')';
 }
 
-// Generate SQL for window functions (with WindowFunction parameter)
-function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowFunctionWithWindow(func: WindowFunction[1]): String[1]
+// Generate BigQuery window function with WindowFunction parameter
+function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowFunction(func: WindowFunction[1]): String[1]
 {
    meta::pure::dsl::dataframe::generateWindowFunctionSQL($func, {e | generateBigQueryExpression($e)}, {w | generateBigQueryWindowSpec($w)});
 }

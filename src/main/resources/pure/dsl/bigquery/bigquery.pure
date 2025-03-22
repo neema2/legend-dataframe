@@ -379,3 +379,4 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryLateralJo
 }
 
 // toSQL function moved to dataframe.pure
+// Type-safe functions have been moved to dataframe.pure

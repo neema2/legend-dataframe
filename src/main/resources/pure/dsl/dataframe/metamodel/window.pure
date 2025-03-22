@@ -17,19 +17,6 @@ import meta::pure::dsl::dataframe::metamodel::*;
 import meta::pure::dsl::dataframe::metamodel::window::*;
 import meta::pure::dsl::dataframe::metamodel::frame::*;
 
-Class meta::pure::dsl::dataframe::metamodel::window::_Window<T>
-{
-   partition: String[*];
-   sortInfo: SortInfo[*];
-   frame: Frame[0..1];
-}
-
-Class meta::pure::dsl::dataframe::metamodel::window::SortInfo<T>
-{
-   column: String[1];
-   direction: SortDirection[1];
-}
-
 Enum meta::pure::dsl::dataframe::metamodel::window::SortDirection
 {
    ASC,

@@ -318,12 +318,7 @@ function <<access.private>> meta::pure::dsl::duckdb::generateSQLFromWindowSpec(w
    $partitionBy + $orderBy;
 }
 
-// Add handling for _Window
-function meta::pure::dsl::duckdb::generateWindowSpecSQL(windowSpec: _Window<Any>[1]): String[1]
-{
-   // Use central implementation
-   meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateDuckDBExpression($e)});
-}
+
 
 function meta::pure::dsl::duckdb::generateFrameSQL(frame: Frame[1]): String[1]
 {

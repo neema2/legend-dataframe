@@ -231,9 +231,7 @@ function <<access.private>> meta::pure::dsl::postgres::generatePostgresFunction(
          let params = $func.parameters->excluding($func.parameters->last());
          
          $funcName + '(' + $params->map(p | $p->generatePostgresExpression())->joinStrings(', ') + ') OVER(' +
-         if($window.partition->isEmpty(), '', 'PARTITION BY ' + $window.partition->joinStrings(', ')) +
-         if($window.sortInfo->isEmpty(), '', if($window.partition->isEmpty(), '', ' ') + 'ORDER BY ' + $window.sortInfo->map(s | $s.column + if($s.direction == SortDirection.ASC, ' ASC', ' DESC'))->joinStrings(', ')) +
-         if($window.frame->isEmpty(), '', ' ' + $window.frame->toOne()->generatePostgresFrame()) +
+         meta::pure::dsl::dataframe::generateWindowSpecSQL($window, {e | generatePostgresExpression($e)}) +
          ')',
          // Standard function call
          $funcName + '(' + $func.parameters->map(p | $p->generatePostgresExpression())->joinStrings(', ') + ')'

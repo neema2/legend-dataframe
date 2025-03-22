@@ -55,22 +55,6 @@ function meta::pure::dsl::dataframe::generateWindowSpecSQL(windowSpec: Window[1]
                  'ORDER BY ' + $windowSpec.orderBy->map(o | $expressionGenerator->eval($o.expression) + 
                      if($o.direction == SortDirection.ASC, '', ' DESC'))->joinStrings(', '));
    
-   $partitionBy + $orderBy;
-}
-
-// Standard _Window specification generation
-function meta::pure::dsl::dataframe::generateWindowSpecSQL(windowSpec: _Window<Any>[1], expressionGenerator: Function<{Expression[1]->String[1]}>[1]): String[1]
-{
-   let partitionBy = if($windowSpec.partition->isEmpty(), 
-                     '', 
-                     'PARTITION BY ' + $windowSpec.partition->joinStrings(', '));
-   
-   let orderBy = if($windowSpec.sortInfo->isEmpty(), 
-                 '', 
-                 if($partitionBy->isEmpty(), '', ' ') + 
-                 'ORDER BY ' + $windowSpec.sortInfo->map(s | $s.column + 
-                     if($s.direction == SortDirection.ASC, '', ' DESC'))->joinStrings(', '));
-   
    let frame = if($windowSpec.frame->isEmpty(), 
                '', 
                if($partitionBy->isEmpty() && $orderBy->isEmpty(), '', ' ') + 
@@ -78,6 +62,8 @@ function meta::pure::dsl::dataframe::generateWindowSpecSQL(windowSpec: _Window<A
    
    $partitionBy + $orderBy + $frame;
 }
+
+
 
 // Standard frame generation
 function meta::pure::dsl::dataframe::generateFrameSQL(frame: Frame[1]): String[1]

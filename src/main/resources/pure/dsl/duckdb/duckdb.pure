@@ -98,7 +98,7 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBDataSource(so
       j: JoinOperation[1] | $j.left->generateDuckDBDataSource() + ' ' + $j.joinType->generateDuckDBJoinType() + ' ' + $j.right->generateDuckDBDataSource() + ' ON ' + $j.condition->generateDuckDBExpression(),
       s: SubquerySource[1] | '(' + $s.dataFrame->generateDuckDBSQL() + ') AS ' + $s.alias,
       d: DataSource[1] | 'UNKNOWN_SOURCE_TYPE'
-   ])
+   ]);
 }
 
 // Generate SQL for join types
@@ -110,7 +110,7 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBJoinType(join
       JoinType.RIGHT_OUTER | 'RIGHT JOIN',
       JoinType.FULL_OUTER | 'FULL JOIN',
       JoinType.CROSS | 'CROSS JOIN'
-   ])
+   ]);
 }
 
 // Generate SQL for expressions
@@ -123,7 +123,7 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBExpression(ex
       b: BinaryOperation[1] | '(' + $b.left->generateDuckDBExpression() + ' ' + $b.operator->generateDuckDBBinaryOperator() + ' ' + $b.right->generateDuckDBExpression() + ')',
       u: UnaryOperation[1] | $u.operator->generateDuckDBUnaryOperator() + '(' + $u.expression->generateDuckDBExpression() + ')',
       e: Expression[1] | 'UNKNOWN_EXPRESSION_TYPE'
-   ])
+   ]);
 }
 
 // Generate SQL for function expressions
@@ -133,7 +133,7 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBFunction(func
       c: CountFunction[1] | 'COUNT(' + if($c.distinct == true, 'DISTINCT ', '') + $c.parameters->map(p | $p->generateDuckDBExpression())->joinStrings(', ') + ')',
       a: AggregateFunction[1] | $a.functionName->toUpperCase() + '(' + $a.parameters->map(p | $p->generateDuckDBExpression())->joinStrings(', ') + ')',
       f: FunctionExpression[1] | $f.functionName + '(' + $f.parameters->map(p | $p->generateDuckDBExpression())->joinStrings(', ') + ')'
-   ])
+   ]);
 }
 
 // Generate SQL for binary operators
@@ -153,7 +153,7 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBBinaryOperato
       BinaryOperator.NOT_IN | 'NOT IN',
       BinaryOperator.IS_NULL | 'IS NULL',
       BinaryOperator.IS_NOT_NULL | 'IS NOT NULL'
-   ])
+   ]);
 }
 
 // Generate SQL for unary operators
@@ -161,7 +161,7 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBUnaryOperator
 {
    $op->match([
       UnaryOperator.NOT | 'NOT '
-   ])
+   ]);
 }
 
 // Generate SQL for literal values
@@ -175,5 +175,5 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBLiteral(value
       d: Date[1] | 'DATE \'' + $d->toString() + '\'',
       n: Nil[1] | 'NULL',
       a: Any[1] | $a->toString()
-   ])
+   ]);
 }

@@ -16,6 +16,7 @@ import meta::pure::dsl::dataframe::*;
 import meta::pure::dsl::dataframe::metamodel::*;
 import meta::pure::dsl::snowflake::*;
 import meta::pure::dsl::duckdb::*;
+import meta::pure::dsl::bigquery::*;
 import meta::pure::dsl::tests::*;
 
 /**
@@ -28,7 +29,7 @@ function <<test.Test>> meta::pure::dsl::tests::testSimpleSelect(): Boolean[1]
    let df = select([
       as(col('id'), 'id'),
       as(col('name'), 'name')
-   ])->from(table('customers'));
+   ]);->from(table('customers'));
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -41,13 +42,13 @@ function <<test.Test>> meta::pure::dsl::tests::testSimpleSelect(): Boolean[1]
    true;
 }
 
-function <<test.Test>> meta::pure::dsl::tests::testSelectWithFilter(): Boolean[1]
+;function <<test.Test>> meta::pure::dsl::tests::testSelectWithFilter(): Boolean[1]
 {
    // Create a SELECT query with WHERE clause
    let df = select([
       as(col('id'), 'id'),
       as(col('name'), 'name')
-   ])->from(table('customers'))->where(eq(col('id'), literal(100)));
+   ]);->from(table('customers'))->where(eq(col('id'), literal(100)));
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -60,14 +61,14 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithFilter(): Boolean[1
    true;
 }
 
-function <<test.Test>> meta::pure::dsl::tests::testSelectWithJoin(): Boolean[1]
+;function <<test.Test>> meta::pure::dsl::tests::testSelectWithJoin(): Boolean[1]
 {
    // Create a SELECT query with JOIN
    let df = select([
       as(col('c', 'id'), 'customer_id'),
       as(col('c', 'name'), 'customer_name'),
       as(col('o', 'id'), 'order_id')
-   ])->from(
+   ]);->from(
       join(
          tableAs('customers', 'c'),
          tableAs('orders', 'o'),
@@ -86,14 +87,14 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithJoin(): Boolean[1]
    true;
 }
 
-function <<test.Test>> meta::pure::dsl::tests::testSelectWithGroupBy(): Boolean[1]
+;function <<test.Test>> meta::pure::dsl::tests::testSelectWithGroupBy(): Boolean[1]
 {
    // Create a SELECT query with GROUP BY and aggregate functions
    let df = select([
       as(col('category'), 'category'),
       as(count(col('id')), 'count'),
       as(sum(col('amount')), 'total_amount')
-   ])->from(table('orders'))->groupBy([col('category')]);
+   ]);->from(table('orders'))->groupBy([col('category')]);
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -106,13 +107,13 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithGroupBy(): Boolean[
    true;
 }
 
-function <<test.Test>> meta::pure::dsl::tests::testSelectWithOrderBy(): Boolean[1]
+;function <<test.Test>> meta::pure::dsl::tests::testSelectWithOrderBy(): Boolean[1]
 {
    // Create a SELECT query with ORDER BY
    let df = select([
       as(col('id'), 'id'),
       as(col('name'), 'name')
-   ])->from(table('customers'))->orderBy([asc(col('name')), desc(col('id'))]);
+   ]);->from(table('customers'))->orderBy([asc(col('name')), desc(col('id'))]);
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -125,13 +126,13 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithOrderBy(): Boolean[
    true;
 }
 
-function <<test.Test>> meta::pure::dsl::tests::testSelectWithLimit(): Boolean[1]
+;function <<test.Test>> meta::pure::dsl::tests::testSelectWithLimit(): Boolean[1]
 {
    // Create a SELECT query with LIMIT and OFFSET
    let df = select([
       as(col('id'), 'id'),
       as(col('name'), 'name')
-   ])->from(table('customers'))->limit(10)->offset(20);
+   ]);->from(table('customers'))->limit(10)->offset(20);
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -144,14 +145,14 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithLimit(): Boolean[1]
    true;
 }
 
-function <<test.Test>> meta::pure::dsl::tests::testComplexQuery(): Boolean[1]
+;function <<test.Test>> meta::pure::dsl::tests::testComplexQuery(): Boolean[1]
 {
    // Create a complex SELECT query with multiple features
    let df = selectDistinct([
       as(col('c', 'category'), 'category'),
       as(count(col('o', 'id')), 'order_count'),
       as(sum(col('o', 'amount')), 'total_amount')
-   ])->from(
+   ]);->from(
       leftJoin(
          tableAs('categories', 'c'),
          tableAs('orders', 'o'),
@@ -164,11 +165,11 @@ function <<test.Test>> meta::pure::dsl::tests::testComplexQuery(): Boolean[1]
       )
    )->groupBy([
       col('c', 'category')
-   ])->having(
+   ]);->having(
       gt(count(col('o', 'id')), literal(5))
    )->orderBy([
       desc(sum(col('o', 'amount')))
-   ])->limit(5);
+   ]);->limit(5);
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -195,14 +196,14 @@ function <<test.Test>> meta::pure::dsl::tests::testComplexQuery(): Boolean[1]
    true;
 }
 
-function <<test.Test>> meta::pure::dsl::tests::testDatabaseSpecificSyntaxDifferences(): Boolean[1]
+;function <<test.Test>> meta::pure::dsl::tests::testDatabaseSpecificSyntaxDifferences(): Boolean[1]
 {
    // Test a case where Snowflake and DuckDB have different syntax
    // In this case, LEFT OUTER JOIN vs LEFT JOIN
    let df = select([
       as(col('c', 'name'), 'customer_name'),
       as(col('o', 'id'), 'order_id')
-   ])->from(
+   ]);->from(
       leftJoin(
          tableAs('customers', 'c'),
          tableAs('orders', 'o'),
@@ -218,11 +219,207 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabaseSpecificSyntaxDiffere
    let duckdbSQL = $df->generateDuckDBSQL();
    assertEquals('SELECT c.name AS customer_name, o.id AS order_id\nFROM customers AS c LEFT JOIN orders AS o ON (c.id = o.customer_id)', $duckdbSQL);
    
+   // Generate SQL for BigQuery
+   let bigQuerySQL = $df->generateBigQuerySQL();
+   assertEquals('SELECT c.name AS customer_name, o.id AS order_id\nFROM customers AS c LEFT JOIN orders AS o ON (c.id = o.customer_id)', $bigQuerySQL);
+   
    true;
 }
 
-// Helper function for testing
-function <<access.private>> meta::pure::dsl::tests::assertEquals(expected: String[1], actual: String[1]): Boolean[1]
+;// Test BigQuery Simple Select
+function <<test.Test>> meta::pure::dsl::tests::testBigQuerySimpleSelect(): Boolean[1]
+{
+   // Create a simple SELECT query
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name')
+   ]);->from(table('customers'));
+   
+   // Generate SQL for BigQuery
+   let bigQuerySQL = $df->generateBigQuerySQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers', $bigQuerySQL);
+   
+   true;
+}
+
+;// Test BigQuery WITH clause
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryWithClause(): Boolean[1]
+{
+   // Define CTE and main query
+   let employeesCte = cte('emp_cte', 
+      select([
+         as(col('name'), 'name'),
+         as(col('department'), 'department'),
+         as(col('salary'), 'salary')
+      ]);->from(table('employees'))->where(gt(col('salary'), literal(50000)))
+   );
+   
+   let mainQuery = select([
+      as(col('e', 'name'), 'name'),
+      as(col('e', 'department'), 'department')
+   ]);->from(tableAs('emp_cte', 'e'))->with($employeesCte);
+   
+   // Expected SQL for BigQuery
+   let expectedBigQuery = 'WITH emp_cte AS (\n  SELECT name AS name, department AS department, salary AS salary\n  FROM employees\n  WHERE (salary > 50000)\n)\nSELECT e.name AS name, e.department AS department\nFROM emp_cte AS e';
+   
+   let bigQuerySQL = $mainQuery->generateBigQuerySQL();
+   assertEquals($expectedBigQuery, $bigQuerySQL);
+   
+   true;
+}
+
+;// Test BigQuery Recursive WITH clause
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryRecursiveWithClause(): Boolean[1]
+{
+   // Define recursive CTE for employee hierarchy
+   let employeeHierarchyCte = recursiveCte('emp_hierarchy', 
+      ['employee_id', 'manager_id', 'name', 'level'],
+      select([
+         as(col('employee_id'), 'employee_id'),
+         as(col('manager_id'), 'manager_id'),
+         as(col('name'), 'name'),
+         as(literal(1), 'level')
+      ]);->from(table('employees'))->where(isNull(col('manager_id')))
+   );
+   
+   let mainQuery = select([
+      as(col('h', 'employee_id'), 'employee_id'),
+      as(col('h', 'name'), 'name'),
+      as(col('h', 'level'), 'depth')
+   ]);->from(tableAs('emp_hierarchy', 'h'))->with($employeeHierarchyCte)->orderBy([asc(col('h', 'level'))]);
+   
+   // Expected SQL for BigQuery
+   let expectedBigQuery = 'WITH RECURSIVE emp_hierarchy(employee_id, manager_id, name, level) AS (\n  SELECT employee_id AS employee_id, manager_id AS manager_id, name AS name, 1 AS level\n  FROM employees\n  WHERE (manager_id IS NULL)\n)\nSELECT h.employee_id AS employee_id, h.name AS name, h.level AS depth\nFROM emp_hierarchy AS h\nORDER BY h.level ASC';
+   
+   let bigQuerySQL = $mainQuery->generateBigQuerySQL();
+   assertEquals($expectedBigQuery, $bigQuerySQL);
+   
+   true;
+}
+
+;// Test BigQuery PIVOT operation
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryPivot(): Boolean[1]
+{
+   // Create a query with PIVOT
+   let df = select([
+      as(col('region'), 'region'),
+      as(col('Q1'), 'Q1'),
+      as(col('Q2'), 'Q2'),
+      as(col('Q3'), 'Q3'),
+      as(col('Q4'), 'Q4')
+   ]);->from(
+      pivotAs(
+         table('sales'),
+         col('quarter'),
+         col('amount'),
+         [literal('Q1'), literal('Q2'), literal('Q3'), literal('Q4')],
+         'p'
+      )
+   );
+   
+   // Expected SQL for BigQuery
+   let expectedBigQuery = 'SELECT region AS region, Q1 AS Q1, Q2 AS Q2, Q3 AS Q3, Q4 AS Q4\nFROM sales PIVOT(MAX(amount) FOR quarter IN (\'Q1\', \'Q2\', \'Q3\', \'Q4\')) AS p';
+   
+   let bigQuerySQL = $df->generateBigQuerySQL();
+   assertEquals($expectedBigQuery, $bigQuerySQL);
+   
+   true;
+}
+
+;// Test BigQuery UNPIVOT operation
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryUnpivot(): Boolean[1]
+{
+   // Create a query with UNPIVOT
+   let df = select([
+      as(col('region'), 'region'),
+      as(col('quarter'), 'quarter'),
+      as(col('amount'), 'amount')
+   ]);->from(
+      unpivotAs(
+         table('quarterly_sales'),
+         [col('Q1'), col('Q2'), col('Q3'), col('Q4')],
+         'quarter',
+         'amount',
+         'u'
+      )
+   );
+   
+   // Expected SQL for BigQuery
+   let expectedBigQuery = 'SELECT region AS region, quarter AS quarter, amount AS amount\nFROM quarterly_sales UNPIVOT(amount FOR quarter IN (Q1, Q2, Q3, Q4)) AS u';
+   
+   let bigQuerySQL = $df->generateBigQuerySQL();
+   assertEquals($expectedBigQuery, $bigQuerySQL);
+   
+   true;
+}
+
+;// Test BigQuery GROUP BY CUBE
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryGroupByCube(): Boolean[1]
+{
+   // Create a query with GROUP BY CUBE
+   let df = select([
+      as(col('region'), 'region'),
+      as(col('product'), 'product'),
+      as(sum(col('sales_amount')), 'total_sales')
+   ]);->from(table('sales'))->groupByCube([col('region'), col('product')]);
+   
+   // Expected SQL for BigQuery
+   let expectedBigQuery = 'SELECT region AS region, product AS product, SUM(sales_amount) AS total_sales\nFROM sales\nGROUP BY CUBE(region, product)';
+   
+   let bigQuerySQL = $df->generateBigQuerySQL();
+   assertEquals($expectedBigQuery, $bigQuerySQL);
+   
+   true;
+}
+
+;// Test BigQuery GROUP BY ROLLUP
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryGroupByRollup(): Boolean[1]
+{
+   // Create a query with GROUP BY ROLLUP
+   let df = select([
+      as(col('region'), 'region'),
+      as(col('product'), 'product'),
+      as(col('year'), 'year'),
+      as(sum(col('sales_amount')), 'total_sales')
+   ]);->from(table('sales'))->groupByRollup([col('region'), col('product'), col('year')]);
+   
+   // Expected SQL for BigQuery
+   let expectedBigQuery = 'SELECT region AS region, product AS product, year AS year, SUM(sales_amount) AS total_sales\nFROM sales\nGROUP BY ROLLUP(region, product, year)';
+   
+   let bigQuerySQL = $df->generateBigQuerySQL();
+   assertEquals($expectedBigQuery, $bigQuerySQL);
+   
+   true;
+}
+
+;// Test BigQuery Window Functions
+function <<test.Test>> meta::pure::dsl::tests::testBigQueryWindowFunctions(): Boolean[1]
+{
+   // Create a query with window functions
+   let df = select([
+      as(col('name'), 'name'),
+      as(col('department'), 'department'),
+      as(col('salary'), 'salary'),
+      as(over(sum(col('salary')), [col('department')], []), 'dept_total'),
+      as(over(avg(col('salary')), [col('department')], []), 'dept_avg'),
+      as(over(rank(), [], [asc(col('salary'))]), 'salary_rank')
+   ]);->from(table('employees'));
+   
+   // Expected SQL for BigQuery
+   let expectedBigQuery = 'SELECT name AS name, department AS department, salary AS salary, ' +
+                         'SUM(salary) OVER (PARTITION BY department) AS dept_total, ' +
+                         'AVG(salary) OVER (PARTITION BY department) AS dept_avg, ' +
+                         'RANK() OVER (ORDER BY salary ASC) AS salary_rank\n' +
+                         'FROM employees';
+   
+   let bigQuerySQL = $df->generateBigQuerySQL();
+   assertEquals($expectedBigQuery, $bigQuerySQL);
+   
+   true;
+}
+
+;// Helper function for testing
+function <<access.private>> meta::pure::dsl::tests::assertEquals(expected: String[1], actual: String[1]);: Boolean[1]
 {
    if($expected != $actual)
    {
@@ -234,3 +431,10 @@ function <<access.private>> meta::pure::dsl::tests::assertEquals(expected: Strin
       true;
    }
 }
+
+;// Helper function for RANK window function
+function meta::pure::dsl::tests::rank(): FunctionColumn[1]
+{
+   ^FunctionColumn(name = 'RANK', arguments = [])
+}
+;

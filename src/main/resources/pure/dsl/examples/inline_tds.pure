@@ -1,0 +1,69 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+
+function meta::pure::dsl::examples::inlineTDSExamples(): Any[*]
+{
+   // Basic inline TDS definition
+   let employees = #TDS
+                  id, name, department, salary
+                  1, 'John', 'Engineering', 75000
+                  2, 'Jane', 'Sales', 85000
+                  3, 'Bob', 'Engineering', 70000
+                  4, 'Alice', 'Marketing', 80000
+                  5, 'David', 'Sales', 90000
+                 #;
+   
+   // Filter the inline TDS
+   let engineers = $employees->filter({e | $e.department == 'Engineering'});
+   
+   // Select specific columns
+   let namesAndSalaries = $employees->select({e | [~name, ~salary]});
+   
+   // Group by and aggregate
+   let deptSummary = $employees->groupBy([~department])
+                              ->extend([
+                                 avg(~salary)->as('avg_salary'),
+                                 count()->as('employee_count')
+                              ]);
+   
+   // Order by salary descending
+   let highestPaid = $employees->orderBy([desc(~salary)]);
+   
+   // Join two inline TDS
+   let departments = #TDS
+                     id, name, location
+                     1, 'Engineering', 'Building A'
+                     2, 'Sales', 'Building B'
+                     3, 'Marketing', 'Building C'
+                    #;
+   
+   let joined = $employees->join($departments, {e, d | $e.department == $d.name})
+                         ->select({row | [~id, ~name, ~department, ~location, ~salary]});
+   
+   // Inline TDS with different data types
+   let mixedTypes = #TDS
+                    id, name, active, hire_date, rating
+                    1, 'John', true, '2020-01-15', 4.5
+                    2, 'Jane', true, '2019-05-20', 4.8
+                    3, 'Bob', false, '2021-03-10', 3.9
+                   #;
+   
+   // Generate SQL for different databases
+   let duckSQL = $joined->generateDuckDBSQL();
+   let snowflakeSQL = $joined->generateSnowflakeSQL();
+   
+   [$employees, $engineers, $namesAndSalaries, $deptSummary, $highestPaid, $joined, $mixedTypes, $duckSQL, $snowflakeSQL];
+}

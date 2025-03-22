@@ -1,0 +1,91 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::window::*;
+import meta::pure::dsl::dataframe::metamodel::frame::*;
+
+function meta::pure::dsl::examples::windowFunctions(): Any[*]
+{
+   // Create an inline TDS with sample data
+   let salesData = #TDS
+                  id, product, region, amount, sale_date
+                  1, 'Widget', 'North', 100.00, '2023-01-01'
+                  2, 'Gadget', 'South', 200.00, '2023-01-02'
+                  3, 'Widget', 'North', 150.00, '2023-01-03'
+                  4, 'Gadget', 'South', 250.00, '2023-01-04'
+                  5, 'Widget', 'East', 120.00, '2023-01-05'
+                  6, 'Gadget', 'West', 220.00, '2023-01-06'
+                 #;
+   
+   // Example 1: Simple partition by
+   // Compute average amount by region
+   let example1 = $salesData->extend([
+      avg(~amount)->over(~region)->as('avg_by_region')
+   ]);
+   
+   // Example 2: Partition by with ordering
+   // Compute running total of sales by region, ordered by date
+   let example2 = $salesData->extend([
+      sum(~amount)->over([~region], [asc(~sale_date)])->as('running_total')
+   ]);
+   
+   // Example 3: Using frame specification
+   // Compute moving average with a window of previous 2 rows and current row
+   let example3 = $salesData->extend([
+      avg(~amount)->over(
+         [~region], 
+         [asc(~sale_date)], 
+         rows(-2, 0)  // From 2 rows before to current row
+      )->as('moving_avg')
+   ]);
+   
+   // Example 4: Using unbounded frame
+   // Compute running total from beginning of partition to current row
+   let example4 = $salesData->extend([
+      sum(~amount)->over(
+         [~region], 
+         [asc(~sale_date)], 
+         rows(unbounded(), 0)  // From unbounded preceding to current row
+      )->as('running_total')
+   ]);
+   
+   // Example 5: Using range frame
+   // Compute average over a range of values
+   let example5 = $salesData->extend([
+      avg(~amount)->over(
+         [~region], 
+         [asc(~amount)], 
+         range(-50, 50)  // Range of amount values from -50 to +50 of current row
+      )->as('range_avg')
+   ]);
+   
+   // Example 6: Multiple window functions
+   // Compute multiple statistics in one operation
+   let example6 = $salesData->extend([
+      sum(~amount)->over([~region])->as('region_total'),
+      avg(~amount)->over([~region])->as('region_avg'),
+      rank()->over([~region], [desc(~amount)])->as('rank_in_region'),
+      row_number()->over([~region], [asc(~sale_date)])->as('chronological_order')
+   ]);
+   
+   // Generate SQL for DuckDB
+   let duckSQL = $example3->generateDuckDBSQL();
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $example4->generateSnowflakeSQL();
+   
+   [$example1, $example2, $example3, $example4, $example5, $example6, $duckSQL, $snowflakeSQL];
+}

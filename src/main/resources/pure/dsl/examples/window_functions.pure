@@ -16,6 +16,9 @@ import meta::pure::dsl::dataframe::*;
 import meta::pure::dsl::dataframe::metamodel::*;
 import meta::pure::dsl::dataframe::metamodel::window::*;
 import meta::pure::dsl::dataframe::metamodel::frame::*;
+import meta::pure::dsl::dataframe::metamodel::frame::rows;
+import meta::pure::dsl::dataframe::metamodel::frame::range;
+import meta::pure::dsl::dataframe::metamodel::frame::unbounded;
 
 function meta::pure::dsl::examples::windowFunctions(): Any[*]
 {

@@ -1187,11 +1187,6 @@ function meta::pure::dsl::dataframe::parseTDSLiteral(tdsText: String[1]): DataFr
       source = ^TableReference(tableName = 'inline_tds')
    )
 }
-// Generate Redshift SQL from a DataFrame
-function meta::pure::dsl::dataframe::generateRedshiftSQL(df: DataFrame[1]): String[1]
-{
-   meta::pure::dsl::redshift::generateRedshiftSQL($df);
-}
 
 // Convert DataFrame to SQL for the specified database
 function meta::pure::dsl::dataframe::toSQL(df: DataFrame[1], database: Database[1]): String[1]
@@ -1205,6 +1200,8 @@ function meta::pure::dsl::dataframe::toSQL(df: DataFrame[1], database: Database[
                                  meta::pure::dsl::bigquery::generateBigQuerySQL($df),
                                  if($db == Database.DATABRICKS,
                                     meta::pure::dsl::databricks::generateDatabricksSQL($df),
-                                    fail('Unsupported database: ' + $db->toString()); ''))))
+                                    if($db == Database.REDSHIFT,
+                                       meta::pure::dsl::redshift::generateRedshiftSQL($df),
+                                       fail('Unsupported database: ' + $db->toString()); '')))))
    ]);
 }

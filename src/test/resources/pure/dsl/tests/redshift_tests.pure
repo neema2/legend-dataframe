@@ -25,9 +25,23 @@ function <<meta::pure::profiles::test.Test>> {meta.pure.profiles.test.AlloyOnly}
             ->having({x | sum(col('salary')) > 100000})
             ->orderBy([desc(col('department'))]);
             
-   let sql = $df->generateRedshiftSQL();
+   let sql = $df->toSQL(Database.REDSHIFT);
    
    assertEquals(
       'SELECT name, department, salary\nFROM employees\nWHERE (salary > 50000)\nGROUP BY department\nHAVING (SUM(salary) > 100000)\nORDER BY department DESC', 
       $sql);
+}
+function <<test.Test>> meta::pure::dsl::tests::testToSQLWithRedshift(): Boolean[1]
+{
+   // Create a simple SELECT query
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name')
+   ])->from(table('customers'));
+   
+   // Test toSQL function with Redshift database
+   let redshiftSQL = $df->toSQL(Database.REDSHIFT);
+   assertEquals('SELECT id AS id, name AS name\nFROM customers', $redshiftSQL);
+   
+   true;
 }

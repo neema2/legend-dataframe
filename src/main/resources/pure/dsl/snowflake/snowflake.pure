@@ -407,20 +407,6 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSQLFromAggColSpe
    $funcName + '(' + $colName + ')';
 }
 
-function <<access.private>> meta::pure::dsl::snowflake::generateSQLFromWindowSpec(windowSpec: WindowSpec[1]): String[1]
-{
-   let partitionBy = if($windowSpec.partitionBy->isEmpty(), 
-                      '', 
-                      'PARTITION BY ' + $windowSpec.partitionBy->joinStrings(', '));
-   
-   let orderBy = if($windowSpec.orderBy->isEmpty(), 
-                   '', 
-                   if($partitionBy->isEmpty(), '', ' ') + 
-                   'ORDER BY ' + $windowSpec.orderBy->joinStrings(', '));
-   
-   $partitionBy + $orderBy;
-}
-
 // Add handling for _Window
 function meta::pure::dsl::snowflake::generateWindowSpecSQL(windowSpec: _Window<Any>[1]): String[1]
 {

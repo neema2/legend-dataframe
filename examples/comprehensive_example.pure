@@ -1,0 +1,149 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::snowflake::*;
+import meta::pure::dsl::duckdb::*;
+import meta::pure::dsl::bigquery::*;
+
+/**
+ * Comprehensive example demonstrating multiple features of the DataFrame DSL
+ * including CTEs, window functions, type-safe columns, and more.
+ */
+function meta::pure::dsl::examples::comprehensiveExample(): String[1]
+{
+   // Define table schemas for type safety
+   let customerSchema = ^TableSchema<Any>(
+      name = 'customers',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('name', String), 
+         pair('region', String),
+         pair('signup_date', Date)
+      ])
+   );
+   
+   let orderSchema = ^TableSchema<Any>(
+      name = 'orders',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('customer_id', Integer), 
+         pair('product', String),
+         pair('amount', Decimal),
+         pair('order_date', Date)
+      ])
+   );
+   
+   let productSchema = ^TableSchema<Any>(
+      name = 'products',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('name', String), 
+         pair('category', String),
+         pair('price', Decimal)
+      ])
+   );
+   
+   // Create CTEs for monthly sales aggregation
+   let monthlySalesCte = cte('monthly_sales',
+      select([
+         as(extract('MONTH', col('order_date')), 'month'),
+         as(extract('YEAR', col('order_date')), 'year'),
+         as(sum(col('amount')), 'monthly_total')
+      ])
+      ->from(tableWithSchema('orders', $orderSchema))
+      ->groupBy([
+         extract('MONTH', col('order_date')),
+         extract('YEAR', col('order_date'))
+      ])
+   );
+   
+   // Create CTE for customer ranking by region
+   let customerRankingCte = cte('customer_ranking',
+      select([
+         as(~($customerSchema, 'id'), 'customer_id'),
+         as(~($customerSchema, 'name'), 'customer_name'),
+         as(~($customerSchema, 'region'), 'region'),
+         as(sum(~($orderSchema, 'amount')), 'total_spent'),
+         as(over(
+            rank(), 
+            partitionBy([~($customerSchema, 'region')])
+               ->orderBy([desc(sum(~($orderSchema, 'amount')))])
+         ), 'rank_in_region')
+      ])
+      ->from(join(
+         tableWithSchema('customers', $customerSchema, 'c'),
+         tableWithSchema('orders', $orderSchema, 'o'),
+         JoinType.INNER,
+         eq(~($customerSchema, 'id'), ~($orderSchema, 'customer_id'))
+      ))
+      ->groupBy([
+         ~($customerSchema, 'id'),
+         ~($customerSchema, 'name'),
+         ~($customerSchema, 'region')
+      ])
+   );
+   
+   // Main query using CTEs and window functions
+   let df = select([
+      as(col('cr', 'customer_name'), 'customer'),
+      as(col('cr', 'region'), 'region'),
+      as(col('cr', 'total_spent'), 'total_spent'),
+      as(col('cr', 'rank_in_region'), 'regional_rank'),
+      as(col('ms', 'month'), 'month'),
+      as(col('ms', 'year'), 'year'),
+      as(col('ms', 'monthly_total'), 'monthly_sales'),
+      as(over(
+         avg(col('ms', 'monthly_total')), 
+         partitionBy([col('cr', 'region')])
+            ->orderBy([asc(col('ms', 'year')), asc(col('ms', 'month'))])
+            ->rowsBetween(preceding(2), currentRow())
+      ), 'three_month_moving_avg')
+   ])
+   ->from(join(
+      table('customer_ranking', 'cr'),
+      table('monthly_sales', 'ms'),
+      JoinType.CROSS,
+      literal(true)
+   ))
+   ->where(
+      and([
+         eq(col('cr', 'rank_in_region'), literal(1)),
+         lt(col('ms', 'monthly_total'), literal(10000))
+      ])
+   )
+   ->orderBy([
+      asc(col('cr', 'region')),
+      asc(col('ms', 'year')),
+      asc(col('ms', 'month'))
+   ])
+   ->with([$monthlySalesCte, $customerRankingCte]);
+   
+   // Generate SQL for all three database types
+   print('\n=== Snowflake SQL ===\n');
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   print($snowflakeSQL);
+   
+   print('\n\n=== DuckDB SQL ===\n');
+   let duckdbSQL = $df->generateDuckDBSQL();
+   print($duckdbSQL);
+   
+   print('\n\n=== BigQuery SQL ===\n');
+   let bigquerySQL = $df->generateBigQuerySQL();
+   print($bigquerySQL);
+   
+   // Return a success message
+   'Comprehensive example executed successfully. See console output for generated SQL.';
+}

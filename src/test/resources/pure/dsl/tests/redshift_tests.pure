@@ -1,0 +1,33 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::redshift::*;
+
+function <<meta::pure::profiles::test.Test>> {meta.pure.profiles.test.AlloyOnly} meta::pure::dsl::tests::testBasicRedshiftSQLGeneration(): Boolean[1]
+{
+   let df = table('employees')
+            ->filter({x | $x.salary > 50000})
+            ->select({x | [~name, ~department, ~salary]})
+            ->groupBy([~department])
+            ->having({x | sum(col('salary')) > 100000})
+            ->orderBy([desc(col('department'))]);
+            
+   let sql = $df->generateRedshiftSQL();
+   
+   assertEquals(
+      'SELECT name, department, salary\nFROM employees\nWHERE (salary > 50000)\nGROUP BY department\nHAVING (SUM(salary) > 100000)\nORDER BY department DESC', 
+      $sql);
+}

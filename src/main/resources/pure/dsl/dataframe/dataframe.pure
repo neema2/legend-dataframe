@@ -1175,3 +1175,8 @@ function meta::pure::dsl::dataframe::parseTDSLiteral(tdsText: String[1]): DataFr
       source = ^TableReference(tableName = 'inline_tds')
    )
 }
+// Generate Redshift SQL from a DataFrame
+function meta::pure::dsl::dataframe::generateRedshiftSQL(df: DataFrame[1]): String[1]
+{
+   meta::pure::dsl::redshift::generateRedshiftSQL($df);
+}

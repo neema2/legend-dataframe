@@ -1223,3 +1223,8 @@ function meta::pure::dsl::dataframe::toDatabricksSQL<T>(df: DataFrame<T>[1]): St
 {
    toSQL($df, Database.DATABRICKS);
 }
+
+function meta::pure::dsl::dataframe::toBigQuerySQL<T>(df: DataFrame<T>[1]): String[1]
+{
+   toSQL($df, Database.BIGQUERY);
+}

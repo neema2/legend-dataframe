@@ -1,0 +1,41 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::bigquery::*;
+
+function <<meta::pure::profiles::test.Test>> {meta.pure.profiles.test.AlloyOnly} meta::pure::dsl::tests::testBigQueryQualify(): Boolean[1]
+{
+   // Create a SELECT query with a QUALIFY clause
+   let windowFunc = rank()->over(partitionBy([col('department')]), [asc(col('salary'))]);
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name'),
+      as(col('department'), 'department'),
+      as(col('salary'), 'salary')
+   ])
+   ->from(table('employees'))
+   ->qualify(lt($windowFunc, 3));
+   
+   // Test SQL generation using toBigQuerySQL
+   let sql = $df->toBigQuerySQL();
+   assertEquals('SELECT id AS id, name AS name, department AS department, salary AS salary\nFROM employees\nQUALIFY (rank() OVER (PARTITION BY department ORDER BY salary ASC) < 3)', $sql);
+   
+   // Test SQL generation using toSQL with Database.BIGQUERY
+   let sql2 = $df->toSQL(Database.BIGQUERY);
+   assertEquals('SELECT id AS id, name AS name, department AS department, salary AS salary\nFROM employees\nQUALIFY (rank() OVER (PARTITION BY department ORDER BY salary ASC) < 3)', $sql2);
+   
+   true;
+}

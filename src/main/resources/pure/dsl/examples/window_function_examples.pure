@@ -1,0 +1,172 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::window::*;
+import meta::pure::dsl::dataframe::metamodel::frame::*;
+
+/**
+ * This file contains examples of using window functions with the DataFrame DSL
+ */
+
+// Example 1: Basic window function with partitioning and ordering
+function meta::pure::dsl::examples::basicWindowFunctionExample(): DataFrame[1]
+{
+   // Create a window function that ranks rows within each department, ordered by salary
+   let rankWindow = rank()->over(
+      partitionBy([col('department')]), 
+      [asc(col('salary'))]
+   );
+   
+   // Use the window function in a SELECT statement
+   select([
+      as(col('employee_id'), 'employee_id'),
+      as(col('name'), 'employee_name'),
+      as(col('department'), 'department'),
+      as(col('salary'), 'salary'),
+      as($rankWindow, 'rank_in_department')
+   ])
+   ->from(table('employees'));
+}
+
+// Example 2: Window function with frame specification
+function meta::pure::dsl::examples::windowFunctionWithFrameExample(): DataFrame[1]
+{
+   // Create a window function that calculates a moving average of sales
+   // over the current row and 2 preceding rows, partitioned by region
+   let movingAvgWindow = avg(~sales)->over(
+      partitionBy([~region]),
+      [asc(~date)],
+      rows(2, 0) // 2 preceding rows to current row (0 = current row)
+   );
+   
+   // Use the window function in a SELECT statement
+   select([
+      as(col('date'), 'date'),
+      as(col('region'), 'region'),
+      as(col('product'), 'product'),
+      as(col('sales'), 'sales'),
+      as($movingAvgWindow, 'moving_avg_sales')
+   ])
+   ->from(table('sales_data'));
+}
+
+// Example 3: Multiple window functions in a single query
+function meta::pure::dsl::examples::multipleWindowFunctionsExample(): DataFrame[1]
+{
+   // Create window functions for different analytics
+   let rankBySalary = rank()->over(
+      partitionBy([~department]), 
+      [desc(~salary)]
+   );
+   
+   let avgSalaryByDept = avg(~salary)->over(
+      partitionBy([~department)])
+   );
+   
+   let runningTotal = sum(~salary)->over(
+      partitionBy([~department]),
+      [asc(~hire_date)],
+      rows(unbounded(), 0) // unbounded preceding to current row
+   );
+   
+   // Use the window functions in a SELECT statement
+   select([
+      as(col('employee_id'), 'employee_id'),
+      as(col('name'), 'employee_name'),
+      as(col('department'), 'department'),
+      as(col('salary'), 'salary'),
+      as(col('hire_date'), 'hire_date'),
+      as($rankBySalary, 'salary_rank'),
+      as($avgSalaryByDept, 'avg_dept_salary'),
+      as($runningTotal, 'running_total_salary')
+   ])
+   ->from(table('employees'));
+}
+
+// Example 4: Using lead/lag functions with window
+function meta::pure::dsl::examples::leadLagWindowFunctionExample(): DataFrame[1]
+{
+   // Create window functions for lead and lag analysis
+   let prevSales = lag(~sales, 1, 0)->over(
+      partitionBy([~product]),
+      [asc(~date)]
+   );
+   
+   let nextSales = lead(~sales, 1, 0)->over(
+      partitionBy([~product]),
+      [asc(~date)],
+      range(0, 0) // current row only for range frame
+   );
+   
+   let salesChange = minus(col('sales'), $prevSales);
+   
+   // Use the window functions in a SELECT statement
+   select([
+      as(col('date'), 'date'),
+      as(col('product'), 'product'),
+      as(col('sales'), 'sales'),
+      as($prevSales, 'previous_day_sales'),
+      as($nextSales, 'next_day_sales'),
+      as($salesChange, 'sales_change')
+   ])
+   ->from(table('daily_sales'));
+}
+
+// Example 5: Using row_number for pagination
+function meta::pure::dsl::examples::rowNumberPaginationExample(): DataFrame[1]
+{
+   // Create a row_number window function for pagination
+   let rowNum = rowNumber()->over(
+      [],  // No partitioning
+      [asc(~created_date)],
+      range(unbounded(), unbounded()) // Demonstrate unbounded range frame
+   );
+   
+   // Use the window function with QUALIFY to implement pagination
+   // This example gets records 11-20 (page 2 with page size 10)
+   select([
+      as(col('post_id'), 'post_id'),
+      as(col('title'), 'title'),
+      as(col('author'), 'author'),
+      as(col('created_date'), 'created_date')
+   ])
+   ->from(table('blog_posts'))
+   ->qualify(and(
+      gt($rowNum, 10),
+      lte($rowNum, 20)
+   ));
+}
+
+// Example 6: Using dense_rank for top N in each category
+function meta::pure::dsl::examples::denseRankTopNExample(): DataFrame[1]
+{
+   // Create a dense_rank window function to find top 3 products by sales in each category
+   let productRank = denseRank()->over(
+      partitionBy([~category]),
+      [desc(~total_sales)],
+      rows(0, unbounded()) // current row to unbounded following
+   );
+   
+   // Use the window function with QUALIFY to get top 3 in each category
+   select([
+      as(col('product_id'), 'product_id'),
+      as(col('product_name'), 'product_name'),
+      as(col('category'), 'category'),
+      as(col('total_sales'), 'total_sales')
+   ])
+   ->from(table('product_sales'))
+   ->qualify(lte($productRank, 3));
+}

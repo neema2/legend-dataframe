@@ -14,7 +14,6 @@
 
 import meta::pure::dsl::dataframe::*;
 import meta::pure::dsl::dataframe::metamodel::*;
-import meta::pure::dsl::dataframe::metamodel::column::*;
 
 /**
  * Core DataFrame DSL for modeling SQL SELECT statements
@@ -34,105 +33,6 @@ Class meta::pure::dsl::dataframe::metamodel::DataFrame
    limit : Integer[0..1];
    offset : Integer[0..1];
    distinct : Boolean[0..1];
-   ctes : CommonTableExpression[*];
-   qualify : FilterCondition[0..1];
-}
-
-// Common Table Expression (CTE) for WITH clause
-Class meta::pure::dsl::dataframe::metamodel::CommonTableExpression
-{
-   name : String[1];
-   columns : String[*];
-   dataFrame : DataFrame[1];
-   recursive : Boolean[0..1];
-}
-
-// PIVOT clause for transforming rows to columns
-Class meta::pure::dsl::dataframe::metamodel::PivotClause extends DataSource
-{
-   source : DataSource[1];
-   pivotColumn : Expression[1];
-   valueColumn : Expression[1];
-   pivotValues : LiteralExpression[*];
-   alias : String[0..1];
-}
-
-// UNPIVOT clause for transforming columns to rows
-Class meta::pure::dsl::dataframe::metamodel::UnpivotClause extends DataSource
-{
-   source : DataSource[1];
-   valueColumns : Expression[*];
-   nameColumn : String[1];
-   valueColumn : String[1];
-   alias : String[0..1];
-}
-
-// LATERAL JOIN for correlated subqueries
-Class meta::pure::dsl::dataframe::metamodel::LateralJoinOperation extends DataSource
-{
-   left : DataSource[1];
-   right : SubquerySource[1];
-   joinType : JoinType[1];
-   condition : FilterCondition[0..1];
-}
-
-// Helper functions for PIVOT and UNPIVOT operations
-function meta::pure::dsl::dataframe::pivot(source: DataSource[1], pivotColumn: Expression[1], valueColumn: Expression[1], pivotValues: LiteralExpression[*]): PivotClause[1]
-{
-   ^PivotClause(source = $source, pivotColumn = $pivotColumn, valueColumn = $valueColumn, pivotValues = $pivotValues);
-}
-
-function meta::pure::dsl::dataframe::pivotAs(source: DataSource[1], pivotColumn: Expression[1], valueColumn: Expression[1], pivotValues: LiteralExpression[*], alias: String[1]): PivotClause[1]
-{
-   ^PivotClause(source = $source, pivotColumn = $pivotColumn, valueColumn = $valueColumn, pivotValues = $pivotValues, alias = $alias);
-}
-
-function meta::pure::dsl::dataframe::unpivot(source: DataSource[1], valueColumns: Expression[*], nameColumn: String[1], valueColumn: String[1]): UnpivotClause[1]
-{
-   ^UnpivotClause(source = $source, valueColumns = $valueColumns, nameColumn = $nameColumn, valueColumn = $valueColumn);
-}
-
-function meta::pure::dsl::dataframe::unpivotAs(source: DataSource[1], valueColumns: Expression[*], nameColumn: String[1], valueColumn: String[1], alias: String[1]): UnpivotClause[1]
-{
-   ^UnpivotClause(source = $source, valueColumns = $valueColumns, nameColumn = $nameColumn, valueColumn = $valueColumn, alias = $alias);
-}
-
-// Helper functions for LATERAL JOIN operations
-function meta::pure::dsl::dataframe::lateralJoin(left: DataSource[1], right: SubquerySource[1], joinType: JoinType[1]): LateralJoinOperation[1]
-{
-   ^LateralJoinOperation(left = $left, right = $right, joinType = $joinType);
-}
-
-function meta::pure::dsl::dataframe::lateralJoin(left: DataSource[1], right: SubquerySource[1], joinType: JoinType[1], condition: FilterCondition[1]): LateralJoinOperation[1]
-{
-   ^LateralJoinOperation(left = $left, right = $right, joinType = $joinType, condition = $condition);
-}
-
-// Helper function for QUALIFY clause
-function meta::pure::dsl::dataframe::qualify(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
-{
-   ^$df(qualify = $condition);
-}
-
-// Helper functions for GROUP BY extensions
-function meta::pure::dsl::dataframe::groupByCube(df: DataFrame[1], columns: Expression[*]): DataFrame[1]
-{
-   ^$df(groupBy = ^GroupByClause(columns = $columns, type = GroupByType.CUBE));
-}
-
-function meta::pure::dsl::dataframe::groupByRollup(df: DataFrame[1], columns: Expression[*]): DataFrame[1]
-{
-   ^$df(groupBy = ^GroupByClause(columns = $columns, type = GroupByType.ROLLUP));
-}
-
-function meta::pure::dsl::dataframe::groupByGroupingSets(df: DataFrame[1], sets: GroupingSet[*]): DataFrame[1]
-{
-   ^$df(groupBy = ^GroupByClause(sets = $sets));
-}
-
-function meta::pure::dsl::dataframe::groupingSet(columns: Expression[*]): GroupingSet[1]
-{
-   ^GroupingSet(expressions = $columns);
 }
 
 // Column representation
@@ -179,7 +79,6 @@ Class meta::pure::dsl::dataframe::metamodel::TableReference extends DataSource
    tableName : String[1];
    schema : String[0..1];
    alias : String[0..1];
-   tableSchema : TableSchema<Any>[0..1]; // Optional reference to table schema
 }
 
 // Join operation
@@ -256,20 +155,6 @@ Enum meta::pure::dsl::dataframe::metamodel::UnaryOperator
 Class meta::pure::dsl::dataframe::metamodel::GroupByClause
 {
    columns : Expression[*];
-   type : GroupByType[0..1];
-   sets : GroupingSet[*];
-}
-
-Class meta::pure::dsl::dataframe::metamodel::GroupingSet
-{
-   expressions : Expression[*];
-}
-
-Enum meta::pure::dsl::dataframe::metamodel::GroupByType
-{
-   STANDARD,
-   CUBE,
-   ROLLUP
 }
 
 // Order by clause
@@ -286,101 +171,9 @@ Enum meta::pure::dsl::dataframe::metamodel::SortDirection
    DESC
 }
 
-// Column specification types for type-safe operations
-Class meta::pure::dsl::dataframe::metamodel::column::ColSpec<T>
-{
-   name: String[1];
-   tableSchema: TableSchema<T>[0..1];
-}
-
-Class meta::pure::dsl::dataframe::metamodel::column::ColSpecArray<T>
-{
-   names: String[*];
-   tableSchema: TableSchema<T>[0..1];
-}
-
-Class meta::pure::dsl::dataframe::metamodel::column::FuncColSpec<F, Z>
-{
-   name: String[1];
-   func: F[1];
-}
-
-Class meta::pure::dsl::dataframe::metamodel::column::FuncColSpecArray<F, Z>
-{
-   specs: FuncColSpec<F, Z>[*];
-}
-
-// For aggregation functions
-Class meta::pure::dsl::dataframe::metamodel::column::AggColSpec<K, V, R>
-{
-   name: String[1];
-   keyFunc: K[1];
-   valueFunc: V[1];
-}
-
-// Window specification for window functions
-Class meta::pure::dsl::dataframe::metamodel::column::WindowSpec
-{
-   partitionBy: String[*];
-   orderBy: String[*];
-}
-
-// Table schema representation with column definitions
-Class meta::pure::dsl::dataframe::metamodel::TableSchema<T>
-{
-   name: String[1];
-   columns: Map<String, Type>[1];
-}
-
 // Aggregate functions
 Class meta::pure::dsl::dataframe::metamodel::AggregateFunction extends FunctionExpression
 {
-}
-
-// Tilde notation functions for column references
-function meta::pure::dsl::dataframe::~(name:String[1]):ColSpec<Any>[1]
-{
-    ^ColSpec<Any>(name=$name);
-}
-
-function meta::pure::dsl::dataframe::~(names:String[*]):ColSpecArray<Any>[1]
-{
-    ^ColSpecArray<Any>(names=$names);
-}
-
-// Table-aware tilde notation for single column reference
-function meta::pure::dsl::dataframe::~<T>(schema: TableSchema<T>[1], name: String[1]): ColSpec<T>[1]
-{
-   // Validate column exists in schema
-   if($schema.columns->containsKey($name),
-      ^ColSpec<T>(name = $name, tableSchema = $schema),
-      error('Column "' + $name + '" not found in table schema "' + $schema.name + '"')
-   );
-}
-
-// Tilde notation for quoted column names (with spaces)
-function meta::pure::dsl::dataframe::~<T>(schema: TableSchema<T>[1], name: String[1], quoted: Boolean[1]): ColSpec<T>[1]
-{
-   if($quoted, 
-      // For quoted names, we don't need to look up directly
-      ^ColSpec<T>(name = $name, tableSchema = $schema),
-      // For unquoted names, validate it exists
-      if($schema.columns->containsKey($name),
-         ^ColSpec<T>(name = $name, tableSchema = $schema),
-         error('Column "' + $name + '" not found in table schema "' + $schema.name + '"')
-      )
-   );
-}
-
-// Tilde notation for multiple column references
-function meta::pure::dsl::dataframe::~<T>(schema: TableSchema<T>[1], names: String[*]): ColSpecArray<T>[1]
-{
-   // Validate all columns exist in schema
-   let invalidColumns = $names->filter(n | !$schema.columns->containsKey($n));
-   if($invalidColumns->isEmpty(),
-      ^ColSpecArray<T>(names = $names, tableSchema = $schema),
-      error('Columns [' + $invalidColumns->joinStrings(', ') + '] not found in table schema "' + $schema.name + '"')
-   );
 }
 
 // Common aggregate functions
@@ -405,70 +198,80 @@ Class meta::pure::dsl::dataframe::metamodel::MaxFunction extends AggregateFuncti
 {
 }
 
+// Window function classes
+Class meta::pure::dsl::dataframe::metamodel::WindowFunction extends FunctionExpression
+{
+   window : Window[1];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::Window
+{
+   partitionBy : Expression[*];
+   orderBy : OrderByClause[*];
+   frameType : WindowFrameType[0..1];
+   frameStart : WindowFrameBound[0..1];
+   frameEnd : WindowFrameBound[0..1];
+}
+
+Enum meta::pure::dsl::dataframe::metamodel::WindowFrameType
+{
+   ROWS,
+   RANGE
+}
+
+Class meta::pure::dsl::dataframe::metamodel::WindowFrameBound
+{
+   type : WindowFrameBoundType[1];
+   offset : Integer[0..1];
+}
+
+Enum meta::pure::dsl::dataframe::metamodel::WindowFrameBoundType
+{
+   UNBOUNDED_PRECEDING,
+   PRECEDING,
+   CURRENT_ROW,
+   FOLLOWING,
+   UNBOUNDED_FOLLOWING
+}
+
+// Specialized window functions
+Class meta::pure::dsl::dataframe::metamodel::RowNumberFunction extends WindowFunction
+{
+}
+
+Class meta::pure::dsl::dataframe::metamodel::RankFunction extends WindowFunction
+{
+}
+
+Class meta::pure::dsl::dataframe::metamodel::DenseRankFunction extends WindowFunction
+{
+}
+
+Class meta::pure::dsl::dataframe::metamodel::LeadLagFunction extends WindowFunction
+{
+   offset : Expression[0..1];
+   defaultValue : Expression[0..1];
+   ignoreNulls : Boolean[0..1];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::FirstLastValueFunction extends WindowFunction
+{
+   ignoreNulls : Boolean[0..1];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::AggregateWindowFunction extends WindowFunction
+{
+}
+
 // Factory functions for creating DataFrame objects
 function meta::pure::dsl::dataframe::newDataFrame(): DataFrame[1]
 {
    ^DataFrame(columns = [], distinct = false)
 }
 
-// Type-safe select functions
-function meta::pure::dsl::dataframe::select<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
-{
-   // Create column references from ColSpecArray
-   let colRefs = $cols.names->map(n | 
-      ^ColumnReference(columnName = $n)
-   );
-   
-   // Create columns with expressions
-   let dfColumns = $colRefs->map(cr |
-      ^Column(name = $cr.columnName, expression = $cr, alias = $cr.columnName)
-   );
-   
-   ^DataFrame(
-      columns = $dfColumns,
-      source = $df.source,
-      distinct = false
-   );
-}
-
-function meta::pure::dsl::dataframe::select<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
-{
-   // Create column reference
-   let colRef = ^ColumnReference(columnName = $col.name);
-   
-   // Create column with expression
-   let dfColumn = ^Column(name = $colRef.columnName, expression = $colRef, alias = $colRef.columnName);
-   
-   ^DataFrame(
-      columns = [$dfColumn],
-      source = $df.source,
-      distinct = false
-   );
-}
-
 function meta::pure::dsl::dataframe::select(columns: Column[*]): DataFrame[1]
 {
    ^DataFrame(columns = $columns, distinct = false)
-}
-
-function meta::pure::dsl::dataframe::selectDistinct<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
-{
-   let newColumns = $cols.names->map(n | $df.columns->filter(c | $c.name == $n)->toOne());
-   ^DataFrame(
-      columns = $newColumns,
-      source = $df.source,
-      distinct = true
-   );
-}
-
-function meta::pure::dsl::dataframe::selectDistinct<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
-{
-   let newColumn = $df.columns->filter(c | $c.name == $col.name)->toOne();
-   ^DataFrame(
-      columns = [$newColumn],
-      source = $df.source,
-      distinct = true
-   );
 }
 
 function meta::pure::dsl::dataframe::selectDistinct(columns: Column[*]): DataFrame[1]
@@ -481,55 +284,9 @@ function meta::pure::dsl::dataframe::from(df: DataFrame[1], source: DataSource[1
    ^$df(source = $source)
 }
 
-// Type-safe filter function
-function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], condition: Function<{T[1]->Boolean[1]}>[1]): DataFrame[1]
-{
-   ^$df(filter = $condition)
-}
-
-// Type-safe filter function with lambda expression
-function meta::pure::dsl::dataframe::filter<T, Z>(df: DataFrame[1], tableSchema: TableSchema<T>[1], condition: Function<{T[1]->Boolean[1]}>[1]): DataFrame[1]
-{
-   // Validate condition against table schema
-   ^$df(filter = $condition)
-}
-
 function meta::pure::dsl::dataframe::where(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
 {
    ^$df(filter = $condition)
-}
-
-// Type-safe groupBy functions
-function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
-{
-   // Create column references from ColSpecArray
-   let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
-   
-   ^$df(groupBy = ^GroupByClause(columns = $colRefs));
-}
-
-function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
-{
-   // Create column reference
-   let colRef = ^ColumnReference(columnName = $col.name);
-   
-   ^$df(groupBy = ^GroupByClause(columns = [$colRef]));
-}
-
-// Type-safe groupBy function with table schema validation
-function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], tableSchema: TableSchema<T>[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
-{
-   // Validate columns against table schema
-   let invalidColumns = $cols.names->filter(n | !$tableSchema.columns->containsKey($n));
-   if($invalidColumns->isEmpty(),
-      {
-         // Create column references from ColSpecArray
-         let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
-         
-         ^$df(groupBy = ^GroupByClause(columns = $colRefs));
-      },
-      error('Columns [' + $invalidColumns->joinStrings(', ') + '] not found in table schema "' + $tableSchema.name + '"')
-   );
 }
 
 function meta::pure::dsl::dataframe::groupBy(df: DataFrame[1], columns: Expression[*]): DataFrame[1]
@@ -540,27 +297,6 @@ function meta::pure::dsl::dataframe::groupBy(df: DataFrame[1], columns: Expressi
 function meta::pure::dsl::dataframe::having(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
 {
    ^$df(having = $condition)
-}
-
-// Type-safe orderBy functions
-function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1], desc: Boolean[0..1]): DataFrame[1]
-{
-   let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
-   let clauses = $cols.names->map(n | ^OrderByClause(
-      expression = ^ColumnReference(columnName = $n),
-      direction = $direction
-   ));
-   ^$df(orderBy = $clauses);
-}
-
-function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1], desc: Boolean[0..1]): DataFrame[1]
-{
-   let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
-   let clause = ^OrderByClause(
-      expression = ^ColumnReference(columnName = $col.name),
-      direction = $direction
-   );
-   ^$df(orderBy = [$clause]);
 }
 
 function meta::pure::dsl::dataframe::orderBy(df: DataFrame[1], clauses: OrderByClause[*]): DataFrame[1]
@@ -576,50 +312,6 @@ function meta::pure::dsl::dataframe::limit(df: DataFrame[1], limit: Integer[1]):
 function meta::pure::dsl::dataframe::offset(df: DataFrame[1], offset: Integer[1]): DataFrame[1]
 {
    ^$df(offset = $offset)
-}
-
-// Type-safe join functions
-function meta::pure::dsl::dataframe::join<T, V>(left: DataFrame[1], right: DataFrame[1], joinType: JoinType[1], condition: Function<{T[1], V[1]->Boolean[1]}>[1]): DataFrame[1]
-{
-   ^JoinOperation(
-      left = $left.source, 
-      right = $right.source, 
-      joinType = $joinType, 
-      condition = $condition
-   )->from($left.columns->concatenate($right.columns));
-}
-
-// Type-safe over functions for window operations
-function meta::pure::dsl::dataframe::over<T>(cols: ColSpecArray<T>[1]): WindowSpec[1]
-{
-   ^WindowSpec(
-      partitionBy = $cols.names,
-      orderBy = []
-   );
-}
-
-function meta::pure::dsl::dataframe::over<T>(col: ColSpec<T>[1]): WindowSpec[1]
-{
-   ^WindowSpec(
-      partitionBy = [$col.name],
-      orderBy = []
-   );
-}
-
-function meta::pure::dsl::dataframe::over<T, Z>(cols: ColSpecArray<T>[1], orderByCols: ColSpecArray<Z>[1]): WindowSpec[1]
-{
-   ^WindowSpec(
-      partitionBy = $cols.names,
-      orderBy = $orderByCols.names
-   );
-}
-
-function meta::pure::dsl::dataframe::over<T, Z>(col: ColSpec<T>[1], orderByCol: ColSpec<Z>[1]): WindowSpec[1]
-{
-   ^WindowSpec(
-      partitionBy = [$col.name],
-      orderBy = [$orderByCol.name]
-   );
 }
 
 // Helper functions for creating expressions
@@ -725,18 +417,6 @@ function meta::pure::dsl::dataframe::tableAs(schema: String[1], name: String[1],
    ^TableReference(tableName = $name, schema = $schema, alias = $alias)
 }
 
-// Define a table with schema
-function meta::pure::dsl::dataframe::tableWithSchema<T>(name: String[1], schema: TableSchema<T>[1]): TableReference[1]
-{
-   ^TableReference(tableName = $name, tableSchema = $schema);
-}
-
-// Define a table with schema and alias
-function meta::pure::dsl::dataframe::tableWithSchemaAs<T>(name: String[1], schema: TableSchema<T>[1], alias: String[1]): TableReference[1]
-{
-   ^TableReference(tableName = $name, tableSchema = $schema, alias = $alias);
-}
-
 function meta::pure::dsl::dataframe::join(left: DataSource[1], right: DataSource[1], condition: FilterCondition[1]): JoinOperation[1]
 {
    ^JoinOperation(left = $left, right = $right, joinType = JoinType.INNER, condition = $condition)
@@ -773,44 +453,6 @@ function meta::pure::dsl::dataframe::countDistinct(expr: Expression[1]): CountFu
    ^CountFunction(functionName = 'count', parameters = [$expr], distinct = true)
 }
 
-// Type-safe aggregate functions
-function meta::pure::dsl::dataframe::sum<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>[1]
-{
-   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>(
-      name = 'sum_' + $col.name,
-      keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->sum()}
-   );
-}
-
-function meta::pure::dsl::dataframe::avg<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>[1]
-{
-   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>(
-      name = 'avg_' + $col.name,
-      keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->average()}
-   );
-}
-
-function meta::pure::dsl::dataframe::min<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>[1]
-{
-   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>(
-      name = 'min_' + $col.name,
-      keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->min()}
-   );
-}
-
-function meta::pure::dsl::dataframe::max<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>[1]
-{
-   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>(
-      name = 'max_' + $col.name,
-      keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->max()}
-   );
-}
-
-// Legacy functions for backward compatibility
 function meta::pure::dsl::dataframe::sum(expr: Expression[1]): SumFunction[1]
 {
    ^SumFunction(functionName = 'sum', parameters = [$expr])
@@ -842,28 +484,196 @@ function meta::pure::dsl::dataframe::desc(expr: Expression[1]): OrderByClause[1]
    ^OrderByClause(expression = $expr, direction = SortDirection.DESC)
 }
 
-// WITH clause helper functions
-function meta::pure::dsl::dataframe::with(df: DataFrame[1], cte: CommonTableExpression[1]): DataFrame[1]
+// Window function helper functions
+function meta::pure::dsl::dataframe::over(expr: Expression[1], window: Window[1]): WindowFunction[1]
 {
-   ^$df(ctes = $df.ctes->add($cte));
+   let functionName = $expr->getFunctionName();
+   
+   if($functionName == 'row_number')
+   {
+      ^RowNumberFunction(functionName = $functionName, parameters = [], window = $window);
+   }
+   else if($functionName == 'rank')
+   {
+      ^RankFunction(functionName = $functionName, parameters = [], window = $window);
+   }
+   else if($functionName == 'dense_rank')
+   {
+      ^DenseRankFunction(functionName = $functionName, parameters = [], window = $window);
+   }
+   else if($functionName == 'lead' || $functionName == 'lag')
+   {
+      let params = $expr->getFunctionParameters();
+      let valueExpr = $params->at(0);
+      let offset = if($params->size() >= 2, |$params->at(1), |^LiteralExpression(value = 1));
+      let defaultValue = if($params->size() >= 3, |$params->at(2), |^LiteralExpression(value = null));
+      
+      ^LeadLagFunction(functionName = $functionName, parameters = [$valueExpr], window = $window, offset = $offset, defaultValue = $defaultValue);
+   }
+   else if($functionName == 'first_value' || $functionName == 'last_value')
+   {
+      let params = $expr->getFunctionParameters();
+      let valueExpr = $params->at(0);
+      
+      ^FirstLastValueFunction(functionName = $functionName, parameters = [$valueExpr], window = $window);
+   }
+   else
+   {
+      // Default to aggregate window function for sum, avg, min, max, count, etc.
+      let params = if($expr->instanceOf(FunctionExpression), 
+                     |$expr->cast(@FunctionExpression).parameters, 
+                     |[$expr]);
+      
+      ^AggregateWindowFunction(functionName = $functionName, parameters = $params, window = $window);
+   }
 }
 
-function meta::pure::dsl::dataframe::with(df: DataFrame[1], ctes: CommonTableExpression[*]): DataFrame[1]
+function meta::pure::dsl::dataframe::getFunctionName(expr: Expression[1]): String[1]
 {
-   ^$df(ctes = $df.ctes->concatenate($ctes));
+   if($expr->instanceOf(FunctionExpression),
+      |$expr->cast(@FunctionExpression).functionName,
+      |'');
 }
 
-function meta::pure::dsl::dataframe::cte(name: String[1], dataFrame: DataFrame[1]): CommonTableExpression[1]
+function meta::pure::dsl::dataframe::getFunctionParameters(expr: Expression[1]): Expression[*]
 {
-   ^CommonTableExpression(name = $name, dataFrame = $dataFrame, recursive = false);
+   if($expr->instanceOf(FunctionExpression),
+      |$expr->cast(@FunctionExpression).parameters,
+      |[]);
 }
 
-function meta::pure::dsl::dataframe::cte(name: String[1], columns: String[*], dataFrame: DataFrame[1]): CommonTableExpression[1]
+function meta::pure::dsl::dataframe::partitionBy(columns: Expression[*]): Window[1]
 {
-   ^CommonTableExpression(name = $name, columns = $columns, dataFrame = $dataFrame, recursive = false);
+   ^Window(partitionBy = $columns, orderBy = []);
 }
 
-function meta::pure::dsl::dataframe::recursiveCte(name: String[1], columns: String[*], dataFrame: DataFrame[1]): CommonTableExpression[1]
+function meta::pure::dsl::dataframe::orderBy(window: Window[1], clauses: OrderByClause[*]): Window[1]
 {
-   ^CommonTableExpression(name = $name, columns = $columns, dataFrame = $dataFrame, recursive = true);
+   ^$window(orderBy = $clauses);
+}
+
+function meta::pure::dsl::dataframe::rowsUnboundedPreceding(window: Window[1]): Window[1]
+{
+   ^$window(
+      frameType = WindowFrameType.ROWS, 
+      frameStart = ^WindowFrameBound(type = WindowFrameBoundType.UNBOUNDED_PRECEDING),
+      frameEnd = ^WindowFrameBound(type = WindowFrameBoundType.CURRENT_ROW)
+   );
+}
+
+function meta::pure::dsl::dataframe::rowsBetween(window: Window[1], start: WindowFrameBound[1], end: WindowFrameBound[1]): Window[1]
+{
+   ^$window(frameType = WindowFrameType.ROWS, frameStart = $start, frameEnd = $end);
+}
+
+function meta::pure::dsl::dataframe::rangeBetween(window: Window[1], start: WindowFrameBound[1], end: WindowFrameBound[1]): Window[1]
+{
+   ^$window(frameType = WindowFrameType.RANGE, frameStart = $start, frameEnd = $end);
+}
+
+function meta::pure::dsl::dataframe::unboundedPreceding(): WindowFrameBound[1]
+{
+   ^WindowFrameBound(type = WindowFrameBoundType.UNBOUNDED_PRECEDING);
+}
+
+function meta::pure::dsl::dataframe::unboundedFollowing(): WindowFrameBound[1]
+{
+   ^WindowFrameBound(type = WindowFrameBoundType.UNBOUNDED_FOLLOWING);
+}
+
+function meta::pure::dsl::dataframe::currentRow(): WindowFrameBound[1]
+{
+   ^WindowFrameBound(type = WindowFrameBoundType.CURRENT_ROW);
+}
+
+function meta::pure::dsl::dataframe::preceding(offset: Integer[1]): WindowFrameBound[1]
+{
+   ^WindowFrameBound(type = WindowFrameBoundType.PRECEDING, offset = $offset);
+}
+
+function meta::pure::dsl::dataframe::following(offset: Integer[1]): WindowFrameBound[1]
+{
+   ^WindowFrameBound(type = WindowFrameBoundType.FOLLOWING, offset = $offset);
+}
+
+// Window function factory functions
+function meta::pure::dsl::dataframe::rowNumber(): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'row_number', parameters = []);
+}
+
+function meta::pure::dsl::dataframe::rank(): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'rank', parameters = []);
+}
+
+function meta::pure::dsl::dataframe::denseRank(): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'dense_rank', parameters = []);
+}
+
+function meta::pure::dsl::dataframe::lead(expr: Expression[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'lead', parameters = [$expr]);
+}
+
+function meta::pure::dsl::dataframe::lead(expr: Expression[1], offset: Integer[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'lead', parameters = [$expr, literal($offset)]);
+}
+
+function meta::pure::dsl::dataframe::lead(expr: Expression[1], offset: Integer[1], defaultValue: Expression[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'lead', parameters = [$expr, literal($offset), $defaultValue]);
+}
+
+function meta::pure::dsl::dataframe::lag(expr: Expression[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'lag', parameters = [$expr]);
+}
+
+function meta::pure::dsl::dataframe::lag(expr: Expression[1], offset: Integer[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'lag', parameters = [$expr, literal($offset)]);
+}
+
+function meta::pure::dsl::dataframe::lag(expr: Expression[1], offset: Integer[1], defaultValue: Expression[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'lag', parameters = [$expr, literal($offset), $defaultValue]);
+}
+
+function meta::pure::dsl::dataframe::firstValue(expr: Expression[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'first_value', parameters = [$expr]);
+}
+
+function meta::pure::dsl::dataframe::lastValue(expr: Expression[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'last_value', parameters = [$expr]);
+}
+
+// Aggregate function factory functions
+function meta::pure::dsl::dataframe::sum(expr: Expression[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'sum', parameters = [$expr]);
+}
+
+function meta::pure::dsl::dataframe::avg(expr: Expression[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'avg', parameters = [$expr]);
+}
+
+function meta::pure::dsl::dataframe::min(expr: Expression[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'min', parameters = [$expr]);
+}
+
+function meta::pure::dsl::dataframe::max(expr: Expression[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'max', parameters = [$expr]);
+}
+
+function meta::pure::dsl::dataframe::count(expr: Expression[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'count', parameters = [$expr]);
 }

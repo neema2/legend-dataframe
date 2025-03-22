@@ -997,6 +997,12 @@ function meta::pure::dsl::dataframe::rowsUnboundedPreceding(window: Window[1]): 
    );
 }
 
+// Type-safe qualify function for window functions
+function meta::pure::dsl::dataframe::qualify<T>(df: DataFrame<T>[1], condition: Expression[1]): DataFrame<T>[1]
+{
+   ^$df(qualify = $condition);
+}
+
 function meta::pure::dsl::dataframe::rowsBetween(window: Window[1], start: WindowFrameBound[1], end: WindowFrameBound[1]): Window[1]
 {
    ^$window(frameType = WindowFrameType.ROWS, frameStart = $start, frameEnd = $end);

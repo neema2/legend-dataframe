@@ -132,7 +132,68 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeFunctio
    $func->match([
       c: CountFunction[1] | 'COUNT(' + if($c.distinct == true, 'DISTINCT ', '') + $c.parameters->map(p | $p->generateSnowflakeExpression())->joinStrings(', ') + ')',
       a: AggregateFunction[1] | $a.functionName->toUpperCase() + '(' + $a.parameters->map(p | $p->generateSnowflakeExpression())->joinStrings(', ') + ')',
+      w: WindowFunction[1] | $w->generateSnowflakeWindowFunction(),
       f: FunctionExpression[1] | $f.functionName + '(' + $f.parameters->map(p | $p->generateSnowflakeExpression())->joinStrings(', ') + ')'
+   ])
+}
+
+// Generate SQL for window functions
+function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeWindowFunction(func: WindowFunction[1]): String[1]
+{
+   let functionCall = $func->match([
+      r: RowNumberFunction[1] | 'ROW_NUMBER()',
+      r: RankFunction[1] | 'RANK()',
+      d: DenseRankFunction[1] | 'DENSE_RANK()',
+      l: LeadLagFunction[1] | $l.functionName->toUpperCase() + '(' + 
+                                $l.parameters->map(p | $p->generateSnowflakeExpression())->joinStrings(', ') +
+                                if($l.offset->isNotEmpty(), ', ' + $l.offset->toOne()->generateSnowflakeExpression(), '') + 
+                                if($l.defaultValue->isNotEmpty(), ', ' + $l.defaultValue->toOne()->generateSnowflakeExpression(), '') +
+                                ')',
+      f: FirstLastValueFunction[1] | $f.functionName->toUpperCase() + '(' + 
+                                      $f.parameters->map(p | $p->generateSnowflakeExpression())->joinStrings(', ') + 
+                                      ')' + if($f.ignoreNulls == true, ' IGNORE NULLS', ''),
+      a: AggregateWindowFunction[1] | $a.functionName->toUpperCase() + '(' + 
+                                      $a.parameters->map(p | $p->generateSnowflakeExpression())->joinStrings(', ') + 
+                                      ')',
+      w: WindowFunction[1] | $w.functionName + '(' + 
+                              $w.parameters->map(p | $p->generateSnowflakeExpression())->joinStrings(', ') + 
+                              ')'
+   ]);
+   
+   $functionCall + ' OVER(' + $func.window->generateSnowflakeWindow() + ')';
+}
+
+// Generate SQL for window specification
+function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeWindow(window: Window[1]): String[1]
+{
+   let partitionBy = if($window.partitionBy->isEmpty(), 
+                       '', 
+                       'PARTITION BY ' + $window.partitionBy->map(e | $e->generateSnowflakeExpression())->joinStrings(', '));
+   
+   let orderBy = if($window.orderBy->isEmpty(), 
+                    '', 
+                    if($partitionBy->isEmpty(), '', ' ') + 
+                    'ORDER BY ' + $window.orderBy->map(o | $o.expression->generateSnowflakeExpression() + ' ' + $o.direction->toString())->joinStrings(', '));
+   
+   let frame = if($window.frameType->isEmpty(), 
+                 '', 
+                 if($partitionBy->isEmpty() && $orderBy->isEmpty(), '', ' ') + 
+                 $window.frameType->toOne()->toString() + ' BETWEEN ' + 
+                 $window.frameStart->toOne()->generateSnowflakeWindowFrameBound() + ' AND ' + 
+                 $window.frameEnd->toOne()->generateSnowflakeWindowFrameBound());
+   
+   $partitionBy + $orderBy + $frame;
+}
+
+// Generate SQL for window frame bounds
+function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeWindowFrameBound(bound: WindowFrameBound[1]): String[1]
+{
+   $bound.type->match([
+      WindowFrameBoundType.UNBOUNDED_PRECEDING | 'UNBOUNDED PRECEDING',
+      WindowFrameBoundType.PRECEDING | $bound.offset->toOne()->toString() + ' PRECEDING',
+      WindowFrameBoundType.CURRENT_ROW | 'CURRENT ROW',
+      WindowFrameBoundType.FOLLOWING | $bound.offset->toOne()->toString() + ' FOLLOWING',
+      WindowFrameBoundType.UNBOUNDED_FOLLOWING | 'UNBOUNDED FOLLOWING'
    ])
 }
 

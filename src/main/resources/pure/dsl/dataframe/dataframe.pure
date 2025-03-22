@@ -182,6 +182,15 @@ Enum meta::pure::dsl::dataframe::metamodel::SortDirection
    DESC
 }
 
+// Supported database types
+Enum meta::pure::dsl::dataframe::Database
+{
+   SNOWFLAKE,
+   DUCKDB,
+   BIGQUERY,
+   DATABRICKS
+}
+
 // Tilde notation functions for column references
 function meta::pure::dsl::dataframe::~(name:String[1]):ColSpec<Any>[1]
 {

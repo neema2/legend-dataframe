@@ -297,6 +297,8 @@ function meta::pure::dsl::dataframe::toSQL(df: DataFrame[1], database: Database[
                               meta::pure::dsl::duckdb::generateDuckDBSQL($df),
                               if($db == Database.BIGQUERY,
                                  meta::pure::dsl::bigquery::generateBigQuerySQL($df),
-                                 fail('Unsupported database: ' + $db->toString()); '')))
+                                 if($db == Database.DATABRICKS,
+                                    meta::pure::dsl::databricks::generateDatabricksSQL($df),
+                                    fail('Unsupported database: ' + $db->toString()); ''))))
    ]);
 }

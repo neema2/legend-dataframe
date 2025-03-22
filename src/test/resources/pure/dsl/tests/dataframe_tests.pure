@@ -17,6 +17,7 @@ import meta::pure::dsl::dataframe::metamodel::*;
 import meta::pure::dsl::snowflake::*;
 import meta::pure::dsl::duckdb::*;
 import meta::pure::dsl::bigquery::*;
+import meta::pure::dsl::databricks::*;
 import meta::pure::dsl::tests::*;
 
 /**
@@ -439,15 +440,83 @@ function <<test.Test>> meta::pure::dsl::tests::testCommonTableExpressions(): Boo
    ->groupBy([col('c', 'name')])
    ->with([$customerCte, $orderCte]);
    
-   // Generate SQL for all three database types
+   // Generate SQL for all database types
    let snowflakeSQL = $df->generateSnowflakeSQL();
    let duckdbSQL = $df->generateDuckDBSQL();
    let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
    
    // Add assertions to verify SQL output contains WITH clause for each database
    assert($snowflakeSQL->contains('WITH '));
    assert($duckdbSQL->contains('WITH '));
    assert($bigquerySQL->contains('WITH '));
+   assert($databricksSQL->contains('WITH '));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testDatabricksSQL(): Boolean[1]
+{
+   // Create a simple DataFrame
+   let df = select([
+      as(col('c', 'name'), 'customer_name'),
+      as(col('c', 'age'), 'customer_age')
+   ])->from(tableAs('customers', 'c'))->where(gt(col('c', 'age'), literal(30)));
+   
+   // Generate Databricks SQL
+   let databricksSQL = $df->generateDatabricksSQL();
+   
+   // Expected SQL
+   let expectedSQL = 'SELECT c.name AS customer_name, c.age AS customer_age\nFROM customers AS c\nWHERE (c.age > 30)';
+   
+   assertEquals($expectedSQL, $databricksSQL);
+   
+   // Test using toSQL function
+   let databricksSQLViaToSQL = meta::pure::dsl::dataframe::toSQL($df, Database.DATABRICKS);
+   assertEquals($expectedSQL, $databricksSQLViaToSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testDatabricksQualify(): Boolean[1]
+{
+   // Create a DataFrame with a window function and QUALIFY clause
+   let df = select([
+      as(col('c', 'name'), 'customer_name'),
+      as(col('c', 'region'), 'region'),
+      as(col('c', 'sales'), 'sales'),
+      as(rowNumber()->over(partitionBy([col('c', 'region')]), orderBy([desc(col('c', 'sales'))])), 'sales_rank')
+   ])
+   ->from(tableAs('customers', 'c'))
+   ->qualify(lte(col('sales_rank'), literal(3))); // Only keep top 3 customers by sales in each region
+   
+   // Generate Databricks SQL
+   let databricksSQL = $df->generateDatabricksSQL();
+   
+   // Verify QUALIFY clause is present
+   assert($databricksSQL->contains('QUALIFY'));
+   assert($databricksSQL->contains('sales_rank <= 3'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testDatabricksClusterBy(): Boolean[1]
+{
+   // Create a DataFrame with CLUSTER BY clause (Databricks-specific)
+   let df = select([
+      as(col('c', 'name'), 'customer_name'),
+      as(col('c', 'region'), 'region'),
+      as(col('c', 'sales'), 'sales')
+   ])
+   ->from(tableAs('customers', 'c'))
+   ->clusterBy([col('region')]); // Cluster results by region
+   
+   // Generate Databricks SQL
+   let databricksSQL = $df->generateDatabricksSQL();
+   
+   // Verify CLUSTER BY clause is present
+   assert($databricksSQL->contains('CLUSTER BY'));
+   assert($databricksSQL->contains('CLUSTER BY region'));
    
    true;
 }

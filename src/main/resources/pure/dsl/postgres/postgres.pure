@@ -230,10 +230,9 @@ function <<access.private>> meta::pure::dsl::postgres::generatePostgresFunction(
          let window = $func.parameters->last()->cast(@Window);
          let params = $func.parameters->excluding($func.parameters->last());
          
+         // Use common implementation from windowFunctions.pure
          $funcName + '(' + $params->map(p | $p->generatePostgresExpression())->joinStrings(', ') + ') OVER(' +
-         if($window.partition->isEmpty(), '', 'PARTITION BY ' + $window.partition->joinStrings(', ')) +
-         if($window.sortInfo->isEmpty(), '', if($window.partition->isEmpty(), '', ' ') + 'ORDER BY ' + $window.sortInfo->map(s | $s.column + if($s.direction == SortDirection.ASC, ' ASC', ' DESC'))->joinStrings(', ')) +
-         if($window.frame->isEmpty(), '', ' ' + $window.frame->toOne()->generatePostgresFrame()) +
+         meta::pure::dsl::dataframe::generateWindowSpecSQL($window, {e | generatePostgresExpression($e)}) +
          ')',
          // Standard function call
          $funcName + '(' + $func.parameters->map(p | $p->generatePostgresExpression())->joinStrings(', ') + ')'
@@ -241,21 +240,7 @@ function <<access.private>> meta::pure::dsl::postgres::generatePostgresFunction(
    )
 }
 
-// Generate frame for window functions
-function <<access.private>> meta::pure::dsl::postgres::generatePostgresFrame(frame: Frame[1]): String[1]
-{
-   $frame.type->toString() + ' ' + 
-   if($frame.start->isEmpty() && $frame.end->isEmpty(),
-      'UNBOUNDED PRECEDING AND CURRENT ROW',
-      if($frame.start->isNotEmpty() && $frame.end->isEmpty(),
-         $frame.start->toOne() + ' AND CURRENT ROW',
-         if($frame.start->isEmpty() && $frame.end->isNotEmpty(),
-            'UNBOUNDED PRECEDING AND ' + $frame.end->toOne(),
-            $frame.start->toOne() + ' AND ' + $frame.end->toOne()
-         )
-      )
-   )
-}
+// Window frames are now handled by the common implementation in windowFunctions.pure
 
 // Generate binary operation
 function <<access.private>> meta::pure::dsl::postgres::generatePostgresBinaryOp(op: BinaryOperation[1]): String[1]

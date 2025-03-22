@@ -108,3 +108,38 @@ function meta::pure::dsl::dataframe::generateFrameValueSQL(frameValue: FrameValu
         )
    );
 }
+
+// Helper function to generate window spec from WindowFunctionColumn
+function meta::pure::dsl::dataframe::generateWindowSpecFromWindowFunctionColumn(windowFunc: WindowFunctionColumn[1], expressionGenerator: Function<{Expression[1]->String[1]}>[1]): String[1]
+{
+   let partitionBy = if($windowFunc.partitionBy->isEmpty(), 
+                     '', 
+                     'PARTITION BY ' + $windowFunc.partitionBy->map(p | $expressionGenerator->eval($p))->joinStrings(', '));
+   
+   let orderBy = if($windowFunc.orderBy->isEmpty(), 
+                 '', 
+                 if($partitionBy->isEmpty(), '', ' ') + 
+                 'ORDER BY ' + $windowFunc.orderBy->map(o | 
+                    $expressionGenerator->eval($o.column) + 
+                    if($o.direction == SortDirection.ASC, '', ' DESC') + 
+                    if($o.nulls == NullsOrder.FIRST, ' NULLS FIRST', if($o.nulls == NullsOrder.LAST, ' NULLS LAST', ''))
+                 )->joinStrings(', '));
+   
+   let frame = if($windowFunc.frameClause->isEmpty(), 
+               '', 
+               if($partitionBy->isEmpty() && $orderBy->isEmpty(), '', ' ') + 
+               $windowFunc.frameClause->toOne().type->toString() + ' ' + 
+               if($windowFunc.frameClause->toOne().start == FrameBoundary.UNBOUNDED_PRECEDING, 
+                  'UNBOUNDED PRECEDING', 
+                  if($windowFunc.frameClause->toOne().start == FrameBoundary.CURRENT_ROW, 
+                     'CURRENT ROW', 
+                     $windowFunc.frameClause->toOne().startOffset->toOne()->toString() + ' PRECEDING')) + 
+               ' AND ' + 
+               if($windowFunc.frameClause->toOne().end == FrameBoundary.UNBOUNDED_FOLLOWING, 
+                  'UNBOUNDED FOLLOWING', 
+                  if($windowFunc.frameClause->toOne().end == FrameBoundary.CURRENT_ROW, 
+                     'CURRENT ROW', 
+                     $windowFunc.frameClause->toOne().endOffset->toOne()->toString() + ' FOLLOWING')));
+   
+   $partitionBy + $orderBy + $frame;
+}

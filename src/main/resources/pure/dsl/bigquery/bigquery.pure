@@ -308,6 +308,39 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryUnpivot(u
    ')';
 }
 
+// Generate SQL for window functions (with WindowFunction parameter)
+function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowFunctionWithWindow(func: WindowFunction[1]): String[1]
+{
+   meta::pure::dsl::dataframe::generateWindowFunctionSQL($func, {e | generateBigQueryExpression($e)}, {w | generateBigQueryWindowSpec($w)});
+}
+
+// Generate SQL for window specifications
+function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowSpec(windowSpec: Window[1]): String[1]
+{
+   meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateBigQueryExpression($e)});
+}
+
+// Generate SQL for _Window specifications
+function <<access.private>> meta::pure::dsl::bigquery::generateWindowSpecSQL(windowSpec: _Window<Any>[1]): String[1]
+{
+   // Use central implementation
+   meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateBigQueryExpression($e)});
+}
+
+// Generate SQL for window frames
+function <<access.private>> meta::pure::dsl::bigquery::generateFrameSQL(frame: Frame[1]): String[1]
+{
+   // Use central implementation
+   meta::pure::dsl::dataframe::generateFrameSQL($frame);
+}
+
+// Generate SQL for frame values
+function <<access.private>> meta::pure::dsl::bigquery::generateFrameValueSQL(frameValue: FrameValue[1]): String[1]
+{
+   // Use central implementation
+   meta::pure::dsl::dataframe::generateFrameValueSQL($frameValue);
+}
+
 // Generate SQL for a data source
 function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryDataSource(source: DataSource[1]): String[1]
 {

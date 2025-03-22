@@ -1,0 +1,236 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::snowflake::*;
+import meta::pure::dsl::duckdb::*;
+import meta::pure::dsl::tests::*;
+
+/**
+ * Tests for the DataFrame DSL and SQL generators
+ */
+
+function <<test.Test>> meta::pure::dsl::tests::testSimpleSelect(): Boolean[1]
+{
+   // Create a simple SELECT query
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name')
+   ])->from(table('customers'));
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testSelectWithFilter(): Boolean[1]
+{
+   // Create a SELECT query with WHERE clause
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name')
+   ])->from(table('customers'))->where(eq(col('id'), literal(100)));
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers\nWHERE (id = 100)', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers\nWHERE (id = 100)', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testSelectWithJoin(): Boolean[1]
+{
+   // Create a SELECT query with JOIN
+   let df = select([
+      as(col('c', 'id'), 'customer_id'),
+      as(col('c', 'name'), 'customer_name'),
+      as(col('o', 'id'), 'order_id')
+   ])->from(
+      join(
+         tableAs('customers', 'c'),
+         tableAs('orders', 'o'),
+         eq(col('c', 'id'), col('o', 'customer_id'))
+      )
+   );
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT c.id AS customer_id, c.name AS customer_name, o.id AS order_id\nFROM customers AS c INNER JOIN orders AS o ON (c.id = o.customer_id)', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT c.id AS customer_id, c.name AS customer_name, o.id AS order_id\nFROM customers AS c INNER JOIN orders AS o ON (c.id = o.customer_id)', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testSelectWithGroupBy(): Boolean[1]
+{
+   // Create a SELECT query with GROUP BY and aggregate functions
+   let df = select([
+      as(col('category'), 'category'),
+      as(count(col('id')), 'count'),
+      as(sum(col('amount')), 'total_amount')
+   ])->from(table('orders'))->groupBy([col('category')]);
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT category AS category, COUNT(id) AS count, SUM(amount) AS total_amount\nFROM orders\nGROUP BY category', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT category AS category, COUNT(id) AS count, SUM(amount) AS total_amount\nFROM orders\nGROUP BY category', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testSelectWithOrderBy(): Boolean[1]
+{
+   // Create a SELECT query with ORDER BY
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name')
+   ])->from(table('customers'))->orderBy([asc(col('name')), desc(col('id'))]);
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers\nORDER BY name ASC, id DESC', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers\nORDER BY name ASC, id DESC', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testSelectWithLimit(): Boolean[1]
+{
+   // Create a SELECT query with LIMIT and OFFSET
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name')
+   ])->from(table('customers'))->limit(10)->offset(20);
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers\nLIMIT 10\nOFFSET 20', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers\nLIMIT 10\nOFFSET 20', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testComplexQuery(): Boolean[1]
+{
+   // Create a complex SELECT query with multiple features
+   let df = selectDistinct([
+      as(col('c', 'category'), 'category'),
+      as(count(col('o', 'id')), 'order_count'),
+      as(sum(col('o', 'amount')), 'total_amount')
+   ])->from(
+      leftJoin(
+         tableAs('categories', 'c'),
+         tableAs('orders', 'o'),
+         eq(col('c', 'id'), col('o', 'category_id'))
+      )
+   )->where(
+      and(
+         gt(col('o', 'amount'), literal(100)),
+         isNotNull(col('o', 'customer_id'))
+      )
+   )->groupBy([
+      col('c', 'category')
+   ])->having(
+      gt(count(col('o', 'id')), literal(5))
+   )->orderBy([
+      desc(sum(col('o', 'amount')))
+   ])->limit(5);
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let expectedSnowflakeSQL = 'SELECT DISTINCT c.category AS category, COUNT(o.id) AS order_count, SUM(o.amount) AS total_amount\n' +
+                             'FROM categories AS c LEFT OUTER JOIN orders AS o ON (c.id = o.category_id)\n' +
+                             'WHERE ((o.amount > 100) AND (o.customer_id IS NOT NULL))\n' +
+                             'GROUP BY c.category\n' +
+                             'HAVING (COUNT(o.id) > 5)\n' +
+                             'ORDER BY SUM(o.amount) DESC\n' +
+                             'LIMIT 5';
+   assertEquals($expectedSnowflakeSQL, $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let expectedDuckDBSQL = 'SELECT DISTINCT c.category AS category, COUNT(o.id) AS order_count, SUM(o.amount) AS total_amount\n' +
+                          'FROM categories AS c LEFT JOIN orders AS o ON (c.id = o.category_id)\n' +
+                          'WHERE ((o.amount > 100) AND (o.customer_id IS NOT NULL))\n' +
+                          'GROUP BY c.category\n' +
+                          'HAVING (COUNT(o.id) > 5)\n' +
+                          'ORDER BY SUM(o.amount) DESC\n' +
+                          'LIMIT 5';
+   assertEquals($expectedDuckDBSQL, $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testDatabaseSpecificSyntaxDifferences(): Boolean[1]
+{
+   // Test a case where Snowflake and DuckDB have different syntax
+   // In this case, LEFT OUTER JOIN vs LEFT JOIN
+   let df = select([
+      as(col('c', 'name'), 'customer_name'),
+      as(col('o', 'id'), 'order_id')
+   ])->from(
+      leftJoin(
+         tableAs('customers', 'c'),
+         tableAs('orders', 'o'),
+         eq(col('c', 'id'), col('o', 'customer_id'))
+      )
+   );
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT c.name AS customer_name, o.id AS order_id\nFROM customers AS c LEFT OUTER JOIN orders AS o ON (c.id = o.customer_id)', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT c.name AS customer_name, o.id AS order_id\nFROM customers AS c LEFT JOIN orders AS o ON (c.id = o.customer_id)', $duckdbSQL);
+   
+   true;
+}
+
+// Helper function for testing
+function <<access.private>> meta::pure::dsl::tests::assertEquals(expected: String[1], actual: String[1]): Boolean[1]
+{
+   if($expected != $actual)
+   {
+      print('Expected: ' + $expected + '\nActual: ' + $actual);
+      false;
+   }
+   else
+   {
+      true;
+   }
+}

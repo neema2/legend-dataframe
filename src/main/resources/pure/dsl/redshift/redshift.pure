@@ -204,27 +204,8 @@ function <<access.private>> meta::pure::dsl::redshift::generateRedshiftFunction(
 // Generate SQL for window functions
 function <<access.private>> meta::pure::dsl::redshift::generateRedshiftWindowFunction(func: WindowFunction[1]): String[1]
 {
-   let functionCall = $func->match([
-      r: RowNumberFunction[1] | 'ROW_NUMBER()',
-      r: RankFunction[1] | 'RANK()',
-      d: DenseRankFunction[1] | 'DENSE_RANK()',
-      l: LeadLagFunction[1] | $l.functionName->toUpperCase() + '(' + 
-                                $l.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') +
-                                if($l.offset->isNotEmpty(), ', ' + $l.offset->toOne()->generateRedshiftExpression(), '') + 
-                                if($l.defaultValue->isNotEmpty(), ', ' + $l.defaultValue->toOne()->generateRedshiftExpression(), '') +
-                                ')',
-      f: FirstLastValueFunction[1] | $f.functionName->toUpperCase() + '(' + 
-                                     $f.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + 
-                                     ')' + if($f.ignoreNulls == true, ' IGNORE NULLS', ''),
-      a: AggregateWindowFunction[1] | $a.functionName->toUpperCase() + '(' + 
-                                      $a.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + 
-                                      ')',
-      w: WindowFunction[1] | $w.functionName + '(' + 
-                            $w.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + 
-                            ')'
-   ]);
-   
-   $functionCall + ' OVER(' + $func.window->generateRedshiftWindow() + ')';
+   // Use central implementation
+   meta::pure::dsl::dataframe::generateWindowFunctionSQL($func, {e | generateRedshiftExpression($e)}, {w | generateRedshiftWindow($w)});
 }
 
 // Generate SQL for window specification

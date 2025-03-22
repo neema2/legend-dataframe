@@ -19,16 +19,20 @@ import meta::pure::dsl::dataframe::metamodel::column::*;
 // Main function to generate BigQuery SQL from a DataFrame
 function meta::pure::dsl::bigquery::generateBigQuerySQL(df: DataFrame[1]): String[1]
 {
-   let withClause = generateWithClause($df);
-   let selectClause = generateSelectClause($df);
-   let fromClause = generateFromClause($df);
-   let whereClause = generateWhereClause($df);
-   let groupByClause = generateGroupByClause($df);
-   let havingClause = generateHavingClause($df);
-   let orderByClause = generateOrderByClause($df);
-   let limitClause = generateLimitClause($df);
+   // Check for unsupported features
+   if($df.at->isNotEmpty(), | throw('AT clause is not supported in BigQuery', []));
+   if($df.changes->isNotEmpty(), | throw('CHANGES clause is not supported in BigQuery', []));
+   if($df.connectBy->isNotEmpty(), | throw('CONNECT BY clause is not supported in BigQuery', []));
    
-   $withClause + $selectClause + $fromClause + $whereClause + $groupByClause + $havingClause + $orderByClause + $limitClause;
+   let withClause = $df->generateWithClause();
+   $withClause + 
+   $df->generateSelectClause() + 
+   $df->generateFromClause() + 
+   $df->generateWhereClause() + 
+   $df->generateGroupByClause() + 
+   $df->generateHavingClause() + 
+   $df->generateOrderByClause() + 
+   $df->generateLimitOffsetClause()
 }
 
 // Generate the WITH clause
@@ -63,7 +67,7 @@ function <<access.private>> meta::pure::dsl::bigquery::generateFromClause(df: Da
 {
    if($df.source->isEmpty(), 
       '', 
-      '\nFROM ' + $df.source->toOne()->generateBigQuerySource());
+      '\nFROM ' + $df.source->toOne()->generateBigQueryDataSource());
 }
 
 // Generate the WHERE clause
@@ -116,12 +120,12 @@ function <<access.private>> meta::pure::dsl::bigquery::generateOrderByClause(df:
       )->joinStrings(', '));
 }
 
-// Generate the LIMIT clause
-function <<access.private>> meta::pure::dsl::bigquery::generateLimitClause(df: DataFrame[1]): String[1]
+// Generate the LIMIT and OFFSET clauses
+function <<access.private>> meta::pure::dsl::bigquery::generateLimitOffsetClause(df: DataFrame[1]): String[1]
 {
-   if($df.limit->isEmpty(), 
-      '', 
-      '\nLIMIT ' + $df.limit->toOne()->toString());
+   let limitClause = if($df.limit->isEmpty(), '', '\nLIMIT ' + $df.limit->toOne()->toString());
+   let offsetClause = if($df.offset->isEmpty(), '', '\nOFFSET ' + $df.offset->toOne()->toString());
+   $limitClause + $offsetClause;
 }
 
 // Generate BigQuery expression for a column
@@ -231,26 +235,41 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryUnpivot(u
    ')';
 }
 
-// Generate BigQuery source
-function <<access.private>> meta::pure::dsl::bigquery::generateBigQuerySource(source: Source[1]): String[1]
+// Generate SQL for a data source
+function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryDataSource(source: DataSource[1]): String[1]
 {
    $source->match([
-      s: TableSource[1] | $s.name + if($s.alias->isEmpty(), '', ' AS ' + $s.alias->toOne()),
-      s: SubquerySource[1] | '(' + meta::pure::dsl::bigquery::generateBigQuerySQL($s.query) + ')' + if($s.alias->isEmpty(), '', ' AS ' + $s.alias->toOne()),
-      s: JoinSource[1] | generateBigQueryJoin($s),
-      s: PivotSource[1] | generateBigQueryPivotSource($s),
-      s: UnpivotSource[1] | generateBigQueryUnpivotSource($s),
-      s: LateralJoinSource[1] | generateBigQueryLateralJoin($s)
-   ]);
+      t: TableReference[1] | 
+         if($t.tableName == 'inline_tds' && $t.inlineTDSData->isNotEmpty(),
+            | '(SELECT ' + $t.inlineTDSData->toOne().columns->joinStrings(', ') + ' FROM UNNEST(ARRAY[' + 
+              $t.inlineTDSData->toOne().rows->map(row | 
+                 'STRUCT(' + $row->map(cell | generateBigQueryLiteral($cell))->joinStrings(', ') + ')'
+               )->joinStrings(', ') + '])' + 
+               if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), ''),
+            | if($t.schema->isNotEmpty(), $t.schema->toOne() + '.', '') + $t.tableName + if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), '')
+         ),
+      j: JoinOperation[1] | 
+         let joinType = $j.joinType->generateBigQueryJoinType();
+         let joinCondition = if($j.usingColumns->isNotEmpty(),
+                                'USING (' + $j.usingColumns->joinStrings(', ') + ')',
+                                'ON ' + $j.condition->generateBigQueryExpression());
+         $j.left->generateBigQueryDataSource() + ' ' + $joinType + ' ' + $j.right->generateBigQueryDataSource() + ' ' + $joinCondition,
+      l: LateralJoin[1] | $l.left->generateBigQueryDataSource() + ' ' + $l.joinType->generateBigQueryJoinType() + ' LATERAL ' + $l.right->generateBigQueryDataSource() + ' ON ' + $l.condition->generateBigQueryExpression(),
+      s: SubquerySource[1] | '(' + $s.dataFrame->generateBigQuerySQL() + ') AS ' + $s.alias,
+      d: DataSource[1] | 'UNKNOWN_SOURCE_TYPE'
+   ])
 }
 
-// Generate BigQuery JOIN
-function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryJoin(join: JoinSource[1]): String[1]
+// Generate SQL for join types
+function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryJoinType(joinType: JoinType[1]): String[1]
 {
-   $join.left->generateBigQuerySource() + 
-   ' ' + $join.type->toString() + ' JOIN ' + 
-   $join.right->generateBigQuerySource() + 
-   ' ON ' + $join.condition->generateBigQueryExpression();
+   $joinType->match([
+      JoinType.INNER | 'INNER JOIN',
+      JoinType.LEFT_OUTER | 'LEFT JOIN',
+      JoinType.RIGHT_OUTER | 'RIGHT JOIN',
+      JoinType.FULL_OUTER | 'FULL JOIN',
+      JoinType.CROSS | 'CROSS JOIN'
+   ])
 }
 
 // Generate BigQuery PIVOT source

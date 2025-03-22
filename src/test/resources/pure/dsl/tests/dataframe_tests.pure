@@ -221,6 +221,174 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabaseSpecificSyntaxDiffere
    true;
 }
 
+// Window Function Tests
+
+function <<test.Test>> meta::pure::dsl::tests::testWindowFunctionsBasic(): Boolean[1]
+{
+   // Create a SELECT query with basic window functions
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name'),
+      as(rowNumber(partitionBy([col('category')])->orderBy([asc(col('id'))])), 'row_num')
+   ])->from(table('employees'));
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, name AS name, ROW_NUMBER() OVER(PARTITION BY category ORDER BY id ASC) AS row_num\nFROM employees', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, name AS name, ROW_NUMBER() OVER(PARTITION BY category ORDER BY id ASC) AS row_num\nFROM employees', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testWindowFunctionsWithFrames(): Boolean[1]
+{
+   // Create a SELECT query with window functions that use frames
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('sales'), 'sales'),
+      as(sumOver(col('sales'), partitionBy([col('region')])
+                               ->orderBy([asc(col('date'))])
+                               ->rowsBetween(unboundedPreceding(), currentRow())), 'running_total'),
+      as(avgOver(col('sales'), partitionBy([col('region')])
+                               ->orderBy([asc(col('date'))])
+                               ->rowsBetween(preceding(2), following(2))), 'moving_avg')
+   ])->from(table('sales'));
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, sales AS sales, SUM(sales) OVER(PARTITION BY region ORDER BY date ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total, AVG(sales) OVER(PARTITION BY region ORDER BY date ASC ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS moving_avg\nFROM sales', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, sales AS sales, SUM(sales) OVER(PARTITION BY region ORDER BY date ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total, AVG(sales) OVER(PARTITION BY region ORDER BY date ASC ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS moving_avg\nFROM sales', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testWindowFunctionsWithRange(): Boolean[1]
+{
+   // Create a SELECT query with window functions that use RANGE frame type
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('date'), 'date'),
+      as(col('sales'), 'sales'),
+      as(sumOver(col('sales'), partitionBy([col('region')])
+                               ->orderBy([asc(col('date'))])
+                               ->rangeBetween(unboundedPreceding(), currentRow())), 'running_total')
+   ])->from(table('sales'));
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, date AS date, sales AS sales, SUM(sales) OVER(PARTITION BY region ORDER BY date ASC RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total\nFROM sales', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, date AS date, sales AS sales, SUM(sales) OVER(PARTITION BY region ORDER BY date ASC RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total\nFROM sales', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testLeadLagWindowFunctions(): Boolean[1]
+{
+   // Create a SELECT query with LEAD and LAG window functions
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('date'), 'date'),
+      as(col('sales'), 'sales'),
+      as(lead(col('sales'), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'next_day_sales'),
+      as(lead(col('sales'), 2, literal(0), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'sales_in_two_days'),
+      as(lag(col('sales'), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'prev_day_sales'),
+      as(lag(col('sales'), 3, literal(0), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'sales_three_days_ago')
+   ])->from(table('sales'));
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, date AS date, sales AS sales, LEAD(sales) OVER(PARTITION BY region ORDER BY date ASC) AS next_day_sales, LEAD(sales, 2, 0) OVER(PARTITION BY region ORDER BY date ASC) AS sales_in_two_days, LAG(sales) OVER(PARTITION BY region ORDER BY date ASC) AS prev_day_sales, LAG(sales, 3, 0) OVER(PARTITION BY region ORDER BY date ASC) AS sales_three_days_ago\nFROM sales', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, date AS date, sales AS sales, LEAD(sales) OVER(PARTITION BY region ORDER BY date ASC) AS next_day_sales, LEAD(sales, 2, 0) OVER(PARTITION BY region ORDER BY date ASC) AS sales_in_two_days, LAG(sales) OVER(PARTITION BY region ORDER BY date ASC) AS prev_day_sales, LAG(sales, 3, 0) OVER(PARTITION BY region ORDER BY date ASC) AS sales_three_days_ago\nFROM sales', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testRankingWindowFunctions(): Boolean[1]
+{
+   // Create a SELECT query with ranking window functions
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name'),
+      as(col('score'), 'score'),
+      as(rank(partitionBy([col('department')])->orderBy([desc(col('score'))])), 'rank'),
+      as(denseRank(partitionBy([col('department')])->orderBy([desc(col('score'))])), 'dense_rank'),
+      as(rowNumber(partitionBy([col('department')])->orderBy([desc(col('score'))])), 'row_number')
+   ])->from(table('employees'));
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, name AS name, score AS score, RANK() OVER(PARTITION BY department ORDER BY score DESC) AS rank, DENSE_RANK() OVER(PARTITION BY department ORDER BY score DESC) AS dense_rank, ROW_NUMBER() OVER(PARTITION BY department ORDER BY score DESC) AS row_number\nFROM employees', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, name AS name, score AS score, RANK() OVER(PARTITION BY department ORDER BY score DESC) AS rank, DENSE_RANK() OVER(PARTITION BY department ORDER BY score DESC) AS dense_rank, ROW_NUMBER() OVER(PARTITION BY department ORDER BY score DESC) AS row_number\nFROM employees', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testFirstLastValueWindowFunctions(): Boolean[1]
+{
+   // Create a SELECT query with FIRST_VALUE and LAST_VALUE window functions
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('date'), 'date'),
+      as(col('sales'), 'sales'),
+      as(firstValue(col('sales'), partitionBy([col('region')])
+                                  ->orderBy([asc(col('date'))])
+                                  ->rowsBetween(unboundedPreceding(), unboundedFollowing())), 'first_sale'),
+      as(lastValue(col('sales'), partitionBy([col('region')])
+                                 ->orderBy([asc(col('date'))])
+                                 ->rowsBetween(unboundedPreceding(), unboundedFollowing())), 'last_sale')
+   ])->from(table('sales'));
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, date AS date, sales AS sales, FIRST_VALUE(sales) OVER(PARTITION BY region ORDER BY date ASC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS first_sale, LAST_VALUE(sales) OVER(PARTITION BY region ORDER BY date ASC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_sale\nFROM sales', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, date AS date, sales AS sales, FIRST_VALUE(sales) OVER(PARTITION BY region ORDER BY date ASC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS first_sale, LAST_VALUE(sales) OVER(PARTITION BY region ORDER BY date ASC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_sale\nFROM sales', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testAggregateWindowFunctions(): Boolean[1]
+{
+   // Create a SELECT query with aggregate window functions
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('department'), 'department'),
+      as(col('salary'), 'salary'),
+      as(sumOver(col('salary'), partitionBy([col('department')])), 'dept_total'),
+      as(avgOver(col('salary'), partitionBy([col('department')])), 'dept_avg'),
+      as(minOver(col('salary'), partitionBy([col('department')])), 'dept_min'),
+      as(maxOver(col('salary'), partitionBy([col('department')])), 'dept_max'),
+      as(countOver(col('id'), partitionBy([col('department')])), 'dept_count')
+   ])->from(table('employees'));
+   
+   // Generate SQL for Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS id, department AS department, salary AS salary, SUM(salary) OVER(PARTITION BY department) AS dept_total, AVG(salary) OVER(PARTITION BY department) AS dept_avg, MIN(salary) OVER(PARTITION BY department) AS dept_min, MAX(salary) OVER(PARTITION BY department) AS dept_max, COUNT(id) OVER(PARTITION BY department) AS dept_count\nFROM employees', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS id, department AS department, salary AS salary, SUM(salary) OVER(PARTITION BY department) AS dept_total, AVG(salary) OVER(PARTITION BY department) AS dept_avg, MIN(salary) OVER(PARTITION BY department) AS dept_min, MAX(salary) OVER(PARTITION BY department) AS dept_max, COUNT(id) OVER(PARTITION BY department) AS dept_count\nFROM employees', $duckdbSQL);
+   
+   true;
+}
+
 // Helper function for testing
 function <<access.private>> meta::pure::dsl::tests::assertEquals(expected: String[1], actual: String[1]): Boolean[1]
 {

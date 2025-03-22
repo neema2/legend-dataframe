@@ -1,0 +1,240 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::postgres::*;
+import meta::pure::dsl::tests::*;
+
+/**
+ * Tests for PostgreSQL SQL generation
+ */
+
+function <<test.Test>> meta::pure::dsl::tests::testPostgresSimpleSelect(): Boolean[1]
+{
+   // Create a simple SELECT query
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name')
+   ])->from(table('customers'));
+   
+   // Generate SQL for PostgreSQL
+   let postgresSQL = $df->generatePostgresSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers', $postgresSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testPostgresSelectWithFilter(): Boolean[1]
+{
+   // Create a SELECT query with WHERE clause
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name')
+   ])->from(table('customers'))->where(eq(col('id'), literal(100)));
+   
+   // Generate SQL for PostgreSQL
+   let postgresSQL = $df->generatePostgresSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers\nWHERE (id = 100)', $postgresSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testPostgresSelectWithJoin(): Boolean[1]
+{
+   // Create a SELECT query with JOIN
+   let df = select([
+      as(col('c', 'id'), 'customer_id'),
+      as(col('c', 'name'), 'customer_name'),
+      as(col('o', 'id'), 'order_id')
+   ])->from(
+      join(
+         tableAs('customers', 'c'),
+         tableAs('orders', 'o'),
+         eq(col('c', 'id'), col('o', 'customer_id'))
+      )
+   );
+   
+   // Generate SQL for PostgreSQL
+   let postgresSQL = $df->generatePostgresSQL();
+   assertEquals('SELECT c.id AS customer_id, c.name AS customer_name, o.id AS order_id\nFROM customers AS c INNER JOIN orders AS o ON (c.id = o.customer_id)', $postgresSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testPostgresSelectWithGroupBy(): Boolean[1]
+{
+   // Create a SELECT query with GROUP BY and aggregate functions
+   let df = select([
+      as(col('category'), 'category'),
+      as(count(col('id')), 'count'),
+      as(sum(col('amount')), 'total_amount')
+   ])->from(table('orders'))->groupBy([col('category')]);
+   
+   // Generate SQL for PostgreSQL
+   let postgresSQL = $df->generatePostgresSQL();
+   assertEquals('SELECT category AS category, COUNT(id) AS count, SUM(amount) AS total_amount\nFROM orders\nGROUP BY category', $postgresSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testPostgresSelectWithOrderBy(): Boolean[1]
+{
+   // Create a SELECT query with ORDER BY
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name')
+   ])->from(table('customers'))->orderBy([asc(col('name')), desc(col('id'))]);
+   
+   // Generate SQL for PostgreSQL
+   let postgresSQL = $df->generatePostgresSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers\nORDER BY name ASC, id DESC', $postgresSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testPostgresSelectWithLimit(): Boolean[1]
+{
+   // Create a SELECT query with LIMIT and OFFSET
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name')
+   ])->from(table('customers'))->limit(10)->offset(20);
+   
+   // Generate SQL for PostgreSQL
+   let postgresSQL = $df->generatePostgresSQL();
+   assertEquals('SELECT id AS id, name AS name\nFROM customers\nLIMIT 10\nOFFSET 20', $postgresSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testPostgresComplexQuery(): Boolean[1]
+{
+   // Create a complex SELECT query with multiple features
+   let df = selectDistinct([
+      as(col('c', 'category'), 'category'),
+      as(count(col('o', 'id')), 'order_count'),
+      as(sum(col('o', 'amount')), 'total_amount')
+   ])->from(
+      leftJoin(
+         tableAs('categories', 'c'),
+         tableAs('orders', 'o'),
+         eq(col('c', 'id'), col('o', 'category_id'))
+      )
+   )->where(
+      and(
+         gt(col('o', 'amount'), literal(100)),
+         isNotNull(col('o', 'customer_id'))
+      )
+   )->groupBy([
+      col('c', 'category')
+   ])->having(
+      gt(count(col('o', 'id')), literal(5))
+   )->orderBy([
+      desc(sum(col('o', 'amount')))
+   ])->limit(5);
+   
+   // Generate SQL for PostgreSQL
+   let postgresSQL = $df->generatePostgresSQL();
+   let expectedPostgresSQL = 'SELECT DISTINCT c.category AS category, COUNT(o.id) AS order_count, SUM(o.amount) AS total_amount\n' +
+                           'FROM categories AS c LEFT OUTER JOIN orders AS o ON (c.id = o.category_id)\n' +
+                           'WHERE ((o.amount > 100) AND (o.customer_id IS NOT NULL))\n' +
+                           'GROUP BY c.category\n' +
+                           'HAVING (COUNT(o.id) > 5)\n' +
+                           'ORDER BY SUM(o.amount) DESC\n' +
+                           'LIMIT 5';
+   assertEquals($expectedPostgresSQL, $postgresSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testPostgresLateralJoin(): Boolean[1]
+{
+   // Test PostgreSQL LATERAL JOIN which has specific syntax
+   let df = select([
+      as(col('c', 'id'), 'customer_id'),
+      as(col('o', 'value'), 'order_value')
+   ])->from(
+      lateralJoin(
+         tableAs('customers', 'c'),
+         select([as(col('value'), 'value')])->from(table('orders')),
+         'o',
+         eq(col('c', 'id'), col('o', 'customer_id'))
+      )
+   );
+   
+   // Generate SQL for PostgreSQL
+   let postgresSQL = $df->generatePostgresSQL();
+   assertEquals('SELECT c.id AS customer_id, o.value AS order_value\nFROM customers AS c LEFT OUTER JOIN LATERAL (SELECT value AS value\nFROM orders) AS o ON (c.id = o.customer_id)', $postgresSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testPostgresWithCTE(): Boolean[1]
+{
+   // Create a CTE for customer data
+   let customerCte = cte('customers',
+      select([
+         as(col('id'), 'id'),
+         as(col('name'), 'name')
+      ])
+      ->from(table('customer_data'))
+   );
+   
+   // Create a CTE for order data
+   let orderCte = cte('orders',
+      select([
+         as(col('id'), 'id'),
+         as(col('customer_id'), 'customer_id'),
+         as(col('amount'), 'amount')
+      ])
+      ->from(table('order_data'))
+   );
+   
+   // Create a main query using the CTEs
+   let df = select([
+      as(col('c', 'name'), 'customer_name'),
+      as(sum(col('o', 'amount')), 'total_orders')
+   ])
+   ->from(join(
+      tableAs('customers', 'c'),
+      tableAs('orders', 'o'),
+      eq(col('c', 'id'), col('o', 'customer_id'))
+   ))
+   ->groupBy([col('c', 'name')])
+   ->with([$customerCte, $orderCte]);
+   
+   // Generate SQL for PostgreSQL
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL output contains WITH clause
+   assert($postgresSQL->contains('WITH '));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testToSQLWithPostgres(): Boolean[1]
+{
+   // Create a simple SELECT query
+   let df = select([
+      as(col('id'), 'id'),
+      as(col('name'), 'name')
+   ])->from(table('customers'));
+   
+   // Test toSQL function with PostgreSQL database
+   let postgresSQL = $df->toSQL(Database.POSTGRES);
+   assertEquals('SELECT id AS id, name AS name\nFROM customers', $postgresSQL);
+   
+   true;
+}

@@ -1,0 +1,297 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::column::*;
+import meta::pure::dsl::postgres::*;
+
+/**
+ * PostgreSQL SQL generator for the DataFrame DSL
+ * This module provides functions to convert DataFrame objects to PostgreSQL SQL syntax
+ */
+
+// Main function to generate PostgreSQL SQL from a DataFrame
+function meta::pure::dsl::postgres::generatePostgresSQL(df: DataFrame[1]): String[1]
+{
+   // Define feature support for PostgreSQL
+   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap([
+      pair('PIVOT', false),
+      pair('UNPIVOT', false),
+      pair('MATCH_RECOGNIZE', false),
+      pair('LATERAL_JOIN', true),
+      pair('AT', false),
+      pair('CHANGES', false),
+      pair('CONNECT_BY', false),
+      pair('SAMPLE', false),
+      pair('QUALIFY', false)
+   ]);
+   
+   meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'PostgreSQL', $supportedFeatures);
+   
+   let withClause = $df->generateWithClause();
+   $withClause + 
+   $df->generateSelectClause() + 
+   $df->generateFromClause() + 
+   $df->generateWhereClause() + 
+   $df->generateGroupByClause() + 
+   $df->generateHavingClause() + 
+   $df->generateOrderByClause() + 
+   $df->generateLimitOffsetClause()
+}
+
+// Generate the SELECT clause
+function <<access.private>> meta::pure::dsl::postgres::generateSelectClause(df: DataFrame[1]): String[1]
+{
+   'SELECT ' + if($df.distinct == true, 'DISTINCT ', '') +
+   if($df.distinctOn->isNotEmpty(), 'ON (' + $df.distinctOn->map(e | $e->generatePostgresExpression())->joinStrings(', ') + ') ', '') +
+   if($df.columns->isEmpty(), 
+      '*', 
+      $df.columns->map(c | $c.expression->generatePostgresExpression() + if($c.alias->isNotEmpty(), ' AS ' + $c.alias->toOne(), ''))->joinStrings(', '))
+}
+
+// Generate the FROM clause
+function <<access.private>> meta::pure::dsl::postgres::generateFromClause(df: DataFrame[1]): String[1]
+{
+   if($df.source->isEmpty(), 
+      '', 
+      '\nFROM ' + $df.source->toOne()->generatePostgresDataSource())
+}
+
+// Generate the WHERE clause
+function <<access.private>> meta::pure::dsl::postgres::generateWhereClause(df: DataFrame[1]): String[1]
+{
+   if($df.filter->isEmpty(), 
+      '', 
+      '\nWHERE ' + $df.filter->toOne()->generatePostgresExpression())
+}
+
+// Generate the GROUP BY clause
+function <<access.private>> meta::pure::dsl::postgres::generateGroupByClause(df: DataFrame[1]): String[1]
+{
+   if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
+      '', 
+      '\nGROUP BY ' + $df.groupBy.columns->map(c | $c->generatePostgresExpression())->joinStrings(', '))
+}
+
+// Generate the HAVING clause
+function <<access.private>> meta::pure::dsl::postgres::generateHavingClause(df: DataFrame[1]): String[1]
+{
+   if($df.having->isEmpty(), 
+      '', 
+      '\nHAVING ' + $df.having->toOne()->generatePostgresExpression())
+}
+
+// Generate the ORDER BY clause
+function <<access.private>> meta::pure::dsl::postgres::generateOrderByClause(df: DataFrame[1]): String[1]
+{
+   if($df.orderBy->isEmpty(), 
+      '', 
+      '\nORDER BY ' + $df.orderBy->map(o | $o.expression->generatePostgresExpression() + 
+                                      if($o.direction == SortDirection.ASC, ' ASC', ' DESC'))->joinStrings(', '))
+}
+
+// Generate the LIMIT and OFFSET clauses
+function <<access.private>> meta::pure::dsl::postgres::generateLimitOffsetClause(df: DataFrame[1]): String[1]
+{
+   let limitClause = if($df.limit->isEmpty(), '', '\nLIMIT ' + $df.limit->toOne()->toString());
+   let offsetClause = if($df.offset->isEmpty(), '', '\nOFFSET ' + $df.offset->toOne()->toString());
+   $limitClause + $offsetClause
+}
+
+// Generate the WITH clause
+function <<access.private>> meta::pure::dsl::postgres::generateWithClause(df: DataFrame[1]): String[1]
+{
+   if($df.ctes->isEmpty(), 
+      '', 
+      'WITH ' + $df.ctes->map(cte | 
+         if($cte.isRecursive, 
+            'RECURSIVE ', 
+            '') + 
+         $cte.name + if($cte.columns->isNotEmpty(), '(' + $cte.columns->joinStrings(', ') + ')', '') + ' AS (' + 
+         if($cte.query->instanceOf(DataFrame), 
+            meta::pure::dsl::postgres::generatePostgresSQL($cte.query->cast(@DataFrame)), 
+            $cte.query->cast(@String)) + 
+         ')'
+      )->joinStrings(',\n') + '\n')
+}
+
+// Generate data source
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresDataSource(source: DataSource[1]): String[1]
+{
+   $source->match([
+      t: TableReference[1] | $t->generatePostgresSource(),
+      j: JoinOperation[1] | $j->generatePostgresJoin(),
+      s: SubquerySource[1] | $s->generatePostgresSubquery(),
+      l: LateralJoinSource[1] | $l->generatePostgresLateralJoin()
+   ])
+}
+
+// Generate table source
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresSource(table: TableReference[1]): String[1]
+{
+   if($table.schema->isEmpty(), 
+      $table.tableName, 
+      $table.schema->toOne() + '.' + $table.tableName) + 
+   if($table.alias->isEmpty(), '', ' AS ' + $table.alias->toOne())
+}
+
+// Generate join operation
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresJoin(join: JoinOperation[1]): String[1]
+{
+   $join.left->generatePostgresDataSource() + 
+   ' ' + $join.joinType->toString()->replace('_', ' ') + ' JOIN ' + 
+   $join.right->generatePostgresDataSource() + 
+   ' ON ' + $join.condition->generatePostgresExpression()
+}
+
+// Generate subquery
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresSubquery(subquery: SubquerySource[1]): String[1]
+{
+   '(' + meta::pure::dsl::postgres::generatePostgresSQL($subquery.dataFrame) + ') AS ' + $subquery.alias
+}
+
+// Generate LATERAL JOIN
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresLateralJoin(lateral: LateralJoinSource[1]): String[1]
+{
+   $lateral.left->generatePostgresDataSource() + 
+   ' ' + $lateral.type->toString()->replace('_', ' ') + ' JOIN ' + 
+   'LATERAL (' + meta::pure::dsl::postgres::generatePostgresSQL($lateral.right) + ')' + 
+   if($lateral.alias->isEmpty(), '', ' AS ' + $lateral.alias->toOne()) + 
+   if($lateral.condition->isEmpty(), 
+      '', 
+      ' ON ' + $lateral.condition->toOne()->generatePostgresExpression())
+}
+
+// Generate expression
+function meta::pure::dsl::postgres::generatePostgresExpression(expr: Expression[1]): String[1]
+{
+   $expr->match([
+      l: LiteralExpression[1] | $l->generatePostgresLiteral(),
+      c: ColumnReference[1] | $c->generatePostgresColumnRef(),
+      f: FunctionExpression[1] | $f->generatePostgresFunction(),
+      b: BinaryOperation[1] | $b->generatePostgresBinaryOp(),
+      u: UnaryOperation[1] | $u->generatePostgresUnaryOp()
+   ])
+}
+
+// Generate literal
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresLiteral(literal: LiteralExpression[1]): String[1]
+{
+   if($literal.value->instanceOf(String),
+      '\'' + $literal.value->cast(@String)->replace('\'', '\'\'') + '\'',
+      if($literal.value->instanceOf(Boolean),
+         $literal.value->cast(@Boolean)->toString(),
+         if($literal.value == [],
+            '(SELECT NULL WHERE FALSE)',
+            $literal.value->toString()
+         )
+      )
+   )
+}
+
+// Generate column reference
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresColumnRef(col: ColumnReference[1]): String[1]
+{
+   if($col.tableAlias->isEmpty(), 
+      $col.columnName, 
+      $col.tableAlias->toOne() + '.' + $col.columnName)
+}
+
+// Generate function expression
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresFunction(func: FunctionExpression[1]): String[1]
+{
+   let funcName = $func.functionName->toUpper();
+   
+   // Handle COUNT(*) special case
+   if($funcName == 'COUNT' && $func.parameters->size() == 1 && $func.parameters->at(0)->instanceOf(LiteralExpression) && $func.parameters->at(0)->cast(@LiteralExpression).value == '*',
+      'COUNT(*)',
+      // Handle window functions with OVER clause
+      if($func.parameters->isNotEmpty() && $func.parameters->last()->instanceOf(Window),
+         let window = $func.parameters->last()->cast(@Window);
+         let params = $func.parameters->excluding($func.parameters->last());
+         
+         $funcName + '(' + $params->map(p | $p->generatePostgresExpression())->joinStrings(', ') + ') OVER(' +
+         if($window.partition->isEmpty(), '', 'PARTITION BY ' + $window.partition->joinStrings(', ')) +
+         if($window.sortInfo->isEmpty(), '', if($window.partition->isEmpty(), '', ' ') + 'ORDER BY ' + $window.sortInfo->map(s | $s.column + if($s.direction == SortDirection.ASC, ' ASC', ' DESC'))->joinStrings(', ')) +
+         if($window.frame->isEmpty(), '', ' ' + $window.frame->toOne()->generatePostgresFrame()) +
+         ')',
+         // Standard function call
+         $funcName + '(' + $func.parameters->map(p | $p->generatePostgresExpression())->joinStrings(', ') + ')'
+      )
+   )
+}
+
+// Generate frame for window functions
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresFrame(frame: Frame[1]): String[1]
+{
+   $frame.type->toString() + ' ' + 
+   if($frame.start->isEmpty() && $frame.end->isEmpty(),
+      'UNBOUNDED PRECEDING AND CURRENT ROW',
+      if($frame.start->isNotEmpty() && $frame.end->isEmpty(),
+         $frame.start->toOne() + ' AND CURRENT ROW',
+         if($frame.start->isEmpty() && $frame.end->isNotEmpty(),
+            'UNBOUNDED PRECEDING AND ' + $frame.end->toOne(),
+            $frame.start->toOne() + ' AND ' + $frame.end->toOne()
+         )
+      )
+   )
+}
+
+// Generate binary operation
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresBinaryOp(op: BinaryOperation[1]): String[1]
+{
+   let opStr = $op.operator->match([
+      o: BinaryOperator[1] | $o->generatePostgresBinaryOperator()
+   ]);
+   
+   if($op.operator == BinaryOperator.IN || $op.operator == BinaryOperator.NOT_IN,
+      '(' + $op.left->generatePostgresExpression() + ' ' + $opStr + ' (' + 
+      if($op.right->instanceOf(LiteralExpression) && $op.right->cast(@LiteralExpression).value->instanceOf(List),
+         $op.right->cast(@LiteralExpression).value->cast(@List<Any>)->map(v | ^LiteralExpression(value = $v)->generatePostgresExpression())->joinStrings(', '),
+         $op.right->generatePostgresExpression()
+      ) + '))',
+      if($op.operator == BinaryOperator.IS_NULL || $op.operator == BinaryOperator.IS_NOT_NULL,
+         '(' + $op.left->generatePostgresExpression() + ' ' + $opStr + ')',
+         '(' + $op.left->generatePostgresExpression() + ' ' + $opStr + ' ' + $op.right->generatePostgresExpression() + ')'
+      )
+   )
+}
+
+// Generate binary operator
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresBinaryOperator(op: BinaryOperator[1]): String[1]
+{
+   $op->match([
+      o: BinaryOperator[1] | if($o == BinaryOperator.EQUALS, '=',
+                            if($o == BinaryOperator.NOT_EQUALS, '<>',
+                            if($o == BinaryOperator.GREATER_THAN, '>',
+                            if($o == BinaryOperator.LESS_THAN, '<',
+                            if($o == BinaryOperator.GREATER_THAN_OR_EQUALS, '>=',
+                            if($o == BinaryOperator.LESS_THAN_OR_EQUALS, '<=',
+                            if($o == BinaryOperator.AND, 'AND',
+                            if($o == BinaryOperator.OR, 'OR',
+                            if($o == BinaryOperator.LIKE, 'LIKE',
+                            if($o == BinaryOperator.IN, 'IN',
+                            if($o == BinaryOperator.NOT_IN, 'NOT IN',
+                            if($o == BinaryOperator.IS_NULL, 'IS NULL',
+                            if($o == BinaryOperator.IS_NOT_NULL, 'IS NOT NULL',
+                            'UNKNOWN_OPERATOR'))))))))))))))
+   ])
+}
+
+// Generate unary operation
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresUnaryOp(op: UnaryOperation[1]): String[1]
+{
+   '(' + $op.operator->toString() + ' ' + $op.expression->generatePostgresExpression() + ')'
+}

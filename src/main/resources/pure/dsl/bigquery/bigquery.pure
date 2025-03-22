@@ -287,7 +287,7 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryLateralJo
       ' ON ' + $lateral.condition->toOne()->generateBigQueryExpression());
 }
 
-;// Add BigQuery as a supported database
+;// Add BigQuery and PostgreSQL as supported databases
 function meta::pure::dsl::dataframe::toSQL(df: DataFrame[1], database: Database[1]);: String[1]
 {
    $database->match([
@@ -297,6 +297,8 @@ function meta::pure::dsl::dataframe::toSQL(df: DataFrame[1], database: Database[
                               meta::pure::dsl::duckdb::generateDuckDBSQL($df),
                               if($db == Database.BIGQUERY,
                                  meta::pure::dsl::bigquery::generateBigQuerySQL($df),
-                                 fail('Unsupported database: ' + $db->toString()); '')))
+                                 if($db == Database.POSTGRES,
+                                    meta::pure::dsl::postgres::generatePostgresSQL($df),
+                                    fail('Unsupported database: ' + $db->toString()); ''))))
    ]);
 }

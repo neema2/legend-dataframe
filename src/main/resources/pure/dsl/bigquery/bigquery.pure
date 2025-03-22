@@ -287,12 +287,7 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowSpe
    meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateBigQueryExpression($e)});
 }
 
-// Generate SQL for _Window specifications
-function <<access.private>> meta::pure::dsl::bigquery::generateWindowSpecSQL(windowSpec: _Window<Any>[1]): String[1]
-{
-   // Use central implementation
-   meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateBigQueryExpression($e)});
-}
+
 
 // Generate SQL for window frames
 function <<access.private>> meta::pure::dsl::bigquery::generateFrameSQL(frame: Frame[1]): String[1]

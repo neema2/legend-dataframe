@@ -376,12 +376,7 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSQLFromAggColSpe
    $funcName + '(' + $colName + ')';
 }
 
-// Add handling for _Window
-function meta::pure::dsl::snowflake::generateWindowSpecSQL(windowSpec: _Window<Any>[1]): String[1]
-{
-   // Use central implementation
-   meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateSnowflakeExpression($e)});
-}
+
 
 function meta::pure::dsl::snowflake::generateFrameSQL(frame: Frame[1]): String[1]
 {

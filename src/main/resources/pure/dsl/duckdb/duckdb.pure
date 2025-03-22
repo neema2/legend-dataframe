@@ -25,14 +25,20 @@ import meta::pure::dsl::duckdb::*;
 // Main function to generate DuckDB SQL from a DataFrame
 function meta::pure::dsl::duckdb::generateDuckDBSQL(df: DataFrame[1]): String[1]
 {
-   // Check for unsupported features and throw errors
-   if($df.pivot->isNotEmpty(), | throw('PIVOT clause is not supported in DuckDB', []));
-   if($df.unpivot->isNotEmpty(), | throw('UNPIVOT clause is not supported in DuckDB', []));
-   if($df.matchRecognize->isNotEmpty(), | throw('MATCH_RECOGNIZE clause is not supported in DuckDB', []));
-   if($df.source->instanceOf(LateralJoin), | throw('LATERAL join is not supported in DuckDB', []));
-   if($df.at->isNotEmpty(), | throw('AT clause is not supported in DuckDB', []));
-   if($df.changes->isNotEmpty(), | throw('CHANGES clause is not supported in DuckDB', []));
-   if($df.connectBy->isNotEmpty(), | throw('CONNECT BY clause is not supported in DuckDB', []));
+   // Check for unsupported features using standardized error handling
+   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap([
+      pair('PIVOT', false),
+      pair('UNPIVOT', false),
+      pair('MATCH_RECOGNIZE', false),
+      pair('LATERAL_JOIN', false),
+      pair('AT', false),
+      pair('CHANGES', false),
+      pair('CONNECT_BY', false),
+      pair('SAMPLE', true),
+      pair('QUALIFY', true)
+   ]);
+   
+   meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'DuckDB', $supportedFeatures);
    
    let withClause = $df->generateWithClause();
    $withClause + 

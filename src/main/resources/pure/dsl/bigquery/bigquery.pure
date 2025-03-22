@@ -19,10 +19,20 @@ import meta::pure::dsl::dataframe::metamodel::column::*;
 // Main function to generate BigQuery SQL from a DataFrame
 function meta::pure::dsl::bigquery::generateBigQuerySQL(df: DataFrame[1]): String[1]
 {
-   // Check for unsupported features
-   if($df.at->isNotEmpty(), | throw('AT clause is not supported in BigQuery', []));
-   if($df.changes->isNotEmpty(), | throw('CHANGES clause is not supported in BigQuery', []));
-   if($df.connectBy->isNotEmpty(), | throw('CONNECT BY clause is not supported in BigQuery', []));
+   // Check for unsupported features using standardized error handling
+   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap([
+      pair('PIVOT', true),
+      pair('UNPIVOT', true),
+      pair('MATCH_RECOGNIZE', false),
+      pair('LATERAL_JOIN', true),
+      pair('AT', false),
+      pair('CHANGES', false),
+      pair('CONNECT_BY', false),
+      pair('SAMPLE', false),
+      pair('QUALIFY', true)
+   ]);
+   
+   meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'BigQuery', $supportedFeatures);
    
    let withClause = $df->generateWithClause();
    $withClause + 
@@ -31,6 +41,7 @@ function meta::pure::dsl::bigquery::generateBigQuerySQL(df: DataFrame[1]): Strin
    $df->generateWhereClause() + 
    $df->generateGroupByClause() + 
    $df->generateHavingClause() + 
+   $df->generateQualifyClause() +  // Add QUALIFY - BigQuery supports this
    $df->generateOrderByClause() + 
    $df->generateLimitOffsetClause()
 }

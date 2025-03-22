@@ -368,10 +368,10 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeLiteral
       f: Float[1] | $f->toString(),
       b: Boolean[1] | if($b, 'TRUE', 'FALSE'),
       d: Date[1] | 'DATE \'' + $d->toString() + '\'',
+      t: DateTime[1] | 'TIMESTAMP \'' + $t->toString() + '\'',
       n: Nil[1] | 'NULL',
       a: Any[1] | $a->toString()
-   ])
-}
+   ]);
 
 // Generate SQL for type-safe column specifications
 function <<access.private>> meta::pure::dsl::snowflake::generateSQLFromColSpec<T>(colSpec: ColSpec<T>[1]): String[1]

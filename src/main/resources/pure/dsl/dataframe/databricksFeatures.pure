@@ -21,18 +21,6 @@ import meta::pure::dsl::dataframe::metamodel::column::*;
  * This module provides type-safe functions for Databricks-specific SQL features
  */
 
-// Type-safe SQL generation for Databricks
-function meta::pure::dsl::dataframe::toDatabricksSQL<T>(df: DataFrame<T>[1]): String[1]
-{
-   toSQL($df, Database.DATABRICKS);
-}
-
-// Type-safe QUALIFY clause for Databricks
-function meta::pure::dsl::dataframe::qualify<T>(df: DataFrame<T>[1], condition: Column[1]): DataFrame<T>[1]
-{
-   ^$df(qualify = $condition);
-}
-
 // Type-safe CLUSTER BY clause for Databricks
 function meta::pure::dsl::dataframe::clusterBy<T>(df: DataFrame<T>[1], columns: Column[*]): DataFrame<T>[1]
 {

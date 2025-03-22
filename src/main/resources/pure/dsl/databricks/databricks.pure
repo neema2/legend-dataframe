@@ -170,7 +170,7 @@ function <<access.private>> meta::pure::dsl::databricks::generateDatabricksExpre
       c: LiteralColumn[1] | generateDatabricksLiteral($c.value),
       c: FunctionColumn[1] | generateDatabricksFunction($c),
       c: CaseColumn[1] | generateDatabricksCase($c),
-      c: WindowFunctionColumn[1] | generateDatabricksWindowFunction($c),
+      c: WindowFunction[1] | generateDatabricksWindowFunction($c),
       c: SubqueryColumn[1] | '(' + meta::pure::dsl::databricks::generateDatabricksSQL($c.query) + ')',
       c: PivotColumn[1] | generateDatabricksPivot($c),
       c: UnpivotColumn[1] | generateDatabricksUnpivot($c),
@@ -217,39 +217,6 @@ function <<access.private>> meta::pure::dsl::databricks::generateDatabricksCase(
    ' END';
 }
 
-// Generate Databricks window function
-function <<access.private>> meta::pure::dsl::databricks::generateDatabricksWindowFunction(windowFunc: WindowFunctionColumn[1]): String[1]
-{
-   $windowFunc.function->generateDatabricksExpression() + 
-   ' OVER (' + 
-   if($windowFunc.partitionBy->isEmpty(), 
-      '', 
-      'PARTITION BY ' + $windowFunc.partitionBy->map(p | $p->generateDatabricksExpression())->joinStrings(', ')) + 
-   if($windowFunc.orderBy->isEmpty(), 
-      '', 
-      if($windowFunc.partitionBy->isEmpty(), '', ' ') + 
-      'ORDER BY ' + $windowFunc.orderBy->map(o | 
-         $o.column->generateDatabricksExpression() + 
-         if($o.direction == SortDirection.ASC, '', ' DESC') + 
-         if($o.nulls == NullsOrder.FIRST, ' NULLS FIRST', if($o.nulls == NullsOrder.LAST, ' NULLS LAST', ''))
-      )->joinStrings(', ')) + 
-   if($windowFunc.frameClause->isEmpty(), 
-      '', 
-      if($windowFunc.partitionBy->isEmpty() && $windowFunc.orderBy->isEmpty(), '', ' ') + 
-      $windowFunc.frameClause->toOne().type->toString() + ' ' + 
-      if($windowFunc.frameClause->toOne().start == FrameBoundary.UNBOUNDED_PRECEDING, 
-         'UNBOUNDED PRECEDING', 
-         if($windowFunc.frameClause->toOne().start == FrameBoundary.CURRENT_ROW, 
-            'CURRENT ROW', 
-            $windowFunc.frameClause->toOne().startOffset->toOne()->toString() + ' PRECEDING')) + 
-      ' AND ' + 
-      if($windowFunc.frameClause->toOne().end == FrameBoundary.UNBOUNDED_FOLLOWING, 
-         'UNBOUNDED FOLLOWING', 
-         if($windowFunc.frameClause->toOne().end == FrameBoundary.CURRENT_ROW, 
-            'CURRENT ROW', 
-            $windowFunc.frameClause->toOne().endOffset->toOne()->toString() + ' FOLLOWING'))) + 
-   ')';
-}
 
 // Generate Databricks PIVOT
 function <<access.private>> meta::pure::dsl::databricks::generateDatabricksPivot(pivot: PivotColumn[1]): String[1]
@@ -268,6 +235,18 @@ function <<access.private>> meta::pure::dsl::databricks::generateDatabricksUnpiv
    $unpivot.valueColumn + ' FOR ' + $unpivot.nameColumn + 
    ' IN (' + $unpivot.columns->map(c | $c->generateDatabricksExpression() + if($c.alias->isEmpty(), '', ' AS ' + $c.alias->toOne()))->joinStrings(', ') + ')' + 
    ')';
+}
+
+// Generate SQL for window specifications
+function <<access.private>> meta::pure::dsl::databricks::generateDatabricksWindowSpec(windowSpec: Window[1]): String[1]
+{
+   meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateDatabricksExpression($e)});
+}
+
+// Generate Databricks window function with WindowFunction parameter
+function <<access.private>> meta::pure::dsl::databricks::generateDatabricksWindowFunction(func: WindowFunction[1]): String[1]
+{
+   meta::pure::dsl::dataframe::generateWindowFunctionSQL($func, {e | generateDatabricksExpression($e)}, {w | generateDatabricksWindowSpec($w)});
 }
 
 // Generate Databricks binary operators

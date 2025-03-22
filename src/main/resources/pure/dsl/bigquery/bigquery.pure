@@ -208,7 +208,7 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryExpressio
       c: LiteralColumn[1] | generateBigQueryLiteral($c.value),
       c: FunctionColumn[1] | generateBigQueryFunction($c),
       c: CaseColumn[1] | generateBigQueryCase($c),
-      c: WindowFunctionColumn[1] | generateBigQueryWindowFunction($c),
+      c: WindowFunction[1] | generateBigQueryWindowFunction($c),
       c: SubqueryColumn[1] | '(' + meta::pure::dsl::bigquery::generateBigQuerySQL($c.query) + ')',
       c: PivotColumn[1] | generateBigQueryPivot($c),
       c: UnpivotColumn[1] | generateBigQueryUnpivot($c)
@@ -254,39 +254,6 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryCase(case
    ' END';
 }
 
-// Generate BigQuery window function
-function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowFunction(windowFunc: WindowFunctionColumn[1]): String[1]
-{
-   $windowFunc.function->generateBigQueryExpression() + 
-   ' OVER (' + 
-   if($windowFunc.partitionBy->isEmpty(), 
-      '', 
-      'PARTITION BY ' + $windowFunc.partitionBy->map(p | $p->generateBigQueryExpression())->joinStrings(', ')) + 
-   if($windowFunc.orderBy->isEmpty(), 
-      '', 
-      if($windowFunc.partitionBy->isEmpty(), '', ' ') + 
-      'ORDER BY ' + $windowFunc.orderBy->map(o | 
-         $o.column->generateBigQueryExpression() + 
-         if($o.direction == SortDirection.ASC, '', ' DESC') + 
-         if($o.nulls == NullsOrder.FIRST, ' NULLS FIRST', if($o.nulls == NullsOrder.LAST, ' NULLS LAST', ''))
-      )->joinStrings(', ')) + 
-   if($windowFunc.frameClause->isEmpty(), 
-      '', 
-      if($windowFunc.partitionBy->isEmpty() && $windowFunc.orderBy->isEmpty(), '', ' ') + 
-      $windowFunc.frameClause->toOne().type->toString() + ' ' + 
-      if($windowFunc.frameClause->toOne().start == FrameBoundary.UNBOUNDED_PRECEDING, 
-         'UNBOUNDED PRECEDING', 
-         if($windowFunc.frameClause->toOne().start == FrameBoundary.CURRENT_ROW, 
-            'CURRENT ROW', 
-            $windowFunc.frameClause->toOne().startOffset->toOne()->toString() + ' PRECEDING')) + 
-      ' AND ' + 
-      if($windowFunc.frameClause->toOne().end == FrameBoundary.UNBOUNDED_FOLLOWING, 
-         'UNBOUNDED FOLLOWING', 
-         if($windowFunc.frameClause->toOne().end == FrameBoundary.CURRENT_ROW, 
-            'CURRENT ROW', 
-            $windowFunc.frameClause->toOne().endOffset->toOne()->toString() + ' FOLLOWING'))) + 
-   ')';
-}
 
 // Generate BigQuery PIVOT
 function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryPivot(pivot: PivotColumn[1]): String[1]
@@ -308,8 +275,8 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryUnpivot(u
    ')';
 }
 
-// Generate SQL for window functions (with WindowFunction parameter)
-function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowFunctionWithWindow(func: WindowFunction[1]): String[1]
+// Generate BigQuery window function with WindowFunction parameter
+function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowFunction(func: WindowFunction[1]): String[1]
 {
    meta::pure::dsl::dataframe::generateWindowFunctionSQL($func, {e | generateBigQueryExpression($e)}, {w | generateBigQueryWindowSpec($w)});
 }

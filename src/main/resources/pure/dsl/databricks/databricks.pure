@@ -170,7 +170,36 @@ function <<access.private>> meta::pure::dsl::databricks::generateDatabricksExpre
       c: LiteralColumn[1] | generateDatabricksLiteral($c.value),
       c: FunctionColumn[1] | generateDatabricksFunction($c),
       c: CaseColumn[1] | generateDatabricksCase($c),
-      c: WindowFunctionColumn[1] | generateDatabricksWindowFunction($c),
+      c: WindowFunctionColumn[1] | generateDatabricksWindowFunction(^WindowFunction(
+         functionName = $c.function->match([
+            f: FunctionColumn[1] | $f.name,
+            c: Column[1] | 'FUNCTION' // Default case
+         ]),
+         parameters = $c.function->match([
+            f: FunctionColumn[1] | $f.arguments,
+            c: Column[1] | [$c] // Default case
+         ]),
+         window = ^Window(
+            partitionBy = $c.partitionBy,
+            orderBy = $c.orderBy->map(o | ^OrderBy(
+               expression = $o.column,
+               direction = $o.direction
+            )),
+            frameType = if($c.frameClause->isEmpty(), [], [$c.frameClause->toOne().type]),
+            frameStart = if($c.frameClause->isEmpty(), [], 
+                          if($c.frameClause->toOne().start == FrameBoundary.UNBOUNDED_PRECEDING,
+                             [^WindowFrameBound(type=WindowFrameBoundType.UNBOUNDED_PRECEDING)],
+                             if($c.frameClause->toOne().start == FrameBoundary.CURRENT_ROW,
+                                [^WindowFrameBound(type=WindowFrameBoundType.CURRENT_ROW)],
+                                [^WindowFrameBound(type=WindowFrameBoundType.PRECEDING, offset=$c.frameClause->toOne().startOffset)]))),
+            frameEnd = if($c.frameClause->isEmpty(), [], 
+                        if($c.frameClause->toOne().end == FrameBoundary.UNBOUNDED_FOLLOWING,
+                           [^WindowFrameBound(type=WindowFrameBoundType.UNBOUNDED_FOLLOWING)],
+                           if($c.frameClause->toOne().end == FrameBoundary.CURRENT_ROW,
+                              [^WindowFrameBound(type=WindowFrameBoundType.CURRENT_ROW)],
+                              [^WindowFrameBound(type=WindowFrameBoundType.FOLLOWING, offset=$c.frameClause->toOne().endOffset)])))
+         )
+      )),
       c: SubqueryColumn[1] | '(' + meta::pure::dsl::databricks::generateDatabricksSQL($c.query) + ')',
       c: PivotColumn[1] | generateDatabricksPivot($c),
       c: UnpivotColumn[1] | generateDatabricksUnpivot($c),
@@ -217,47 +246,6 @@ function <<access.private>> meta::pure::dsl::databricks::generateDatabricksCase(
    ' END';
 }
 
-// Generate Databricks window function (legacy version for backward compatibility)
-function <<access.private>> meta::pure::dsl::databricks::generateDatabricksWindowFunction(windowFunc: WindowFunctionColumn[1]): String[1]
-{
-   // Convert WindowFunctionColumn to WindowFunction and use common implementation
-   let window = ^Window(
-      partitionBy = $windowFunc.partitionBy,
-      orderBy = $windowFunc.orderBy->map(o | ^OrderBy(
-         expression = $o.column,
-         direction = $o.direction
-      )),
-      frameType = if($windowFunc.frameClause->isEmpty(), [], [$windowFunc.frameClause->toOne().type]),
-      frameStart = if($windowFunc.frameClause->isEmpty(), [], 
-                    if($windowFunc.frameClause->toOne().start == FrameBoundary.UNBOUNDED_PRECEDING,
-                       [^WindowFrameBound(type=WindowFrameBoundType.UNBOUNDED_PRECEDING)],
-                       if($windowFunc.frameClause->toOne().start == FrameBoundary.CURRENT_ROW,
-                          [^WindowFrameBound(type=WindowFrameBoundType.CURRENT_ROW)],
-                          [^WindowFrameBound(type=WindowFrameBoundType.PRECEDING, offset=$windowFunc.frameClause->toOne().startOffset)]))),
-      frameEnd = if($windowFunc.frameClause->isEmpty(), [], 
-                  if($windowFunc.frameClause->toOne().end == FrameBoundary.UNBOUNDED_FOLLOWING,
-                     [^WindowFrameBound(type=WindowFrameBoundType.UNBOUNDED_FOLLOWING)],
-                     if($windowFunc.frameClause->toOne().end == FrameBoundary.CURRENT_ROW,
-                        [^WindowFrameBound(type=WindowFrameBoundType.CURRENT_ROW)],
-                        [^WindowFrameBound(type=WindowFrameBoundType.FOLLOWING, offset=$windowFunc.frameClause->toOne().endOffset)])))
-   );
-   
-   // Create a WindowFunction with the converted window
-   let windowFunction = ^WindowFunction(
-      functionName = $windowFunc.function->match([
-         f: FunctionColumn[1] | $f.name,
-         c: Column[1] | 'FUNCTION' // Default case
-      ]),
-      parameters = $windowFunc.function->match([
-         f: FunctionColumn[1] | $f.arguments,
-         c: Column[1] | [$c] // Default case
-      ]),
-      window = $window
-   );
-   
-   // Use common implementation
-   meta::pure::dsl::dataframe::generateWindowFunctionSQL($windowFunction, {e | generateDatabricksExpression($e)}, {w | generateDatabricksWindowSpec($w)});
-}
 
 // Generate Databricks PIVOT
 function <<access.private>> meta::pure::dsl::databricks::generateDatabricksPivot(pivot: PivotColumn[1]): String[1]

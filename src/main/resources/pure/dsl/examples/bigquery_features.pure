@@ -1,0 +1,139 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::bigquery::*;
+
+function <<functionType.Example>> meta::pure::dsl::examples::bigquery::structValueExample(): Any[*]
+{
+   // Example of SELECT AS STRUCT
+   let structExample = table('employees')
+      ->asStruct()
+      ->select([~id, ~name, ~department, ~salary]);
+   
+   print('SELECT AS STRUCT example:');
+   print(generateBigQuerySQL($structExample));
+   print('\n');
+   
+   // Example of SELECT AS VALUE
+   let valueExample = table('employees')
+      ->asValue()
+      ->select([~id]);
+   
+   print('SELECT AS VALUE example:');
+   print(generateBigQuerySQL($valueExample));
+   print('\n');
+}
+
+function <<functionType.Example>> meta::pure::dsl::examples::bigquery::exceptReplaceExample(): Any[*]
+{
+   // Example of SELECT * EXCEPT
+   let exceptExample = table('employees')
+      ->except(['created_at', 'updated_at']);
+   
+   print('SELECT * EXCEPT example:');
+   print(generateBigQuerySQL($exceptExample));
+   print('\n');
+   
+   // Example of SELECT * REPLACE
+   let replacements = newMap([
+      pair('salary', ^FunctionExpression(functionName = 'FORMAT', parameters = [col('salary'), literal('$%.2f')])),
+      pair('hire_date', ^FunctionExpression(functionName = 'FORMAT_DATE', parameters = [literal('%Y-%m-%d'), col('hire_date')]))
+   ]);
+   
+   let replaceExample = table('employees')
+      ->replace($replacements);
+   
+   print('SELECT * REPLACE example:');
+   print(generateBigQuerySQL($replaceExample));
+   print('\n');
+}
+
+function <<functionType.Example>> meta::pure::dsl::examples::bigquery::privacyExample(): Any[*]
+{
+   // Example of WITH DIFFERENTIAL_PRIVACY
+   let privacyExample = table('salary_data')
+      ->groupBy([~department, ~position])
+      ->extend([
+         avg(~salary)->as('avg_salary'),
+         count(~id)->as('employee_count')
+      ])
+      ->withDifferentialPrivacy(0.1, 0.001, 1.0);
+   
+   print('WITH DIFFERENTIAL_PRIVACY example:');
+   print(generateBigQuerySQL($privacyExample));
+   print('\n');
+   
+   // Example of WITH AGGREGATION_THRESHOLD
+   let thresholdExample = table('salary_data')
+      ->groupBy([~department, ~position])
+      ->extend([
+         avg(~salary)->as('avg_salary'),
+         count(~id)->as('employee_count')
+      ])
+      ->withAggregationThreshold(10, 'NULL');
+   
+   print('WITH AGGREGATION_THRESHOLD example:');
+   print(generateBigQuerySQL($thresholdExample));
+   print('\n');
+}
+
+function <<functionType.Example>> meta::pure::dsl::examples::bigquery::combinedExample(): Any[*]
+{
+   // Comprehensive example combining multiple BigQuery features
+   let query = table('employee_data')
+      ->asStruct()
+      ->except(['ssn', 'bank_account'])
+      ->filter({e | $e.status == 'ACTIVE'})
+      ->groupBy([~department, ~position])
+      ->extend([
+         count(~id)->as('count'),
+         avg(~salary)->as('avg_salary'),
+         min(~salary)->as('min_salary'),
+         max(~salary)->as('max_salary')
+      ])
+      ->orderBy([desc(~count)])
+      ->withDifferentialPrivacy(0.1, SensitivityType.MEAN, 10000.0)
+      ->withAggregationThreshold(5);
+   
+   print('Comprehensive BigQuery example:');
+   print(generateBigQuerySQL($query));
+   print('\n');
+}
+
+function <<functionType.Example>> meta::pure::dsl::examples::bigquery::inlineTDSExample(): Any[*]
+{
+   // Example of inline TDS with BigQuery
+   let inlineData = inlineTDS(['id', 'name', 'department', 'salary'], [
+      [1, 'Alice', 'Engineering', 100000],
+      [2, 'Bob', 'Marketing', 90000],
+      [3, 'Charlie', 'Engineering', 110000],
+      [4, 'Diana', 'Sales', 95000]
+   ]);
+   
+   // Query using inline TDS
+   let query = $inlineData
+      ->filter({e | $e.salary > 95000})
+      ->groupBy([~department])
+      ->extend([
+         count()->as('employee_count'),
+         avg(~salary)->as('avg_salary')
+      ])
+      ->orderBy([desc(~avg_salary)]);
+   
+   print('BigQuery inline TDS example:');
+   print(generateBigQuerySQL($query));
+   print('\n');
+}

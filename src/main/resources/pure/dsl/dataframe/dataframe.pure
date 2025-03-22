@@ -35,6 +35,24 @@ Class meta::pure::dsl::dataframe::metamodel::DataFrame
    offset : Integer[0..1];
    distinct : Boolean[0..1];
    ctes : CommonTableExpression[*];
+   
+   // Properties for Snowflake features
+   pivot : PivotClause[0..1];
+   unpivot : UnpivotClause[0..1];
+   matchRecognize : MatchRecognizeClause[0..1];
+   sample : SampleClause[0..1];
+   qualify : QualifyClause[0..1];
+   at : AtClause[0..1];
+   changes : ChangesClause[0..1];
+   connectBy : ConnectByClause[0..1];
+   
+   // Properties for BigQuery features
+   differentialPrivacy : DifferentialPrivacyClause[0..1];
+   aggregationThreshold : AggregationThresholdClause[0..1];
+   structOutput : Boolean[0..1];
+   valueOutput : Boolean[0..1];
+   exceptColumns : String[*];
+   replaceColumns : Map<String, Expression>[0..1];
 }
 
 // Column representation

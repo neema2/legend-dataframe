@@ -150,7 +150,7 @@ function <<access.private>> meta::pure::dsl::snowflake::generatePivotClause(df: 
       '', 
       ' PIVOT(' + 
          $df.pivot->toOne().aggregation->generateSnowflakeExpression() + 
-         ' FOR ' + $df.pivot->toOne().forColumns->map(c | $c->generateSnowflakeExpression())->joinStrings(', ') + 
+         ' FOR ' + $df.pivot->toOne().forColumn->generateSnowflakeExpression() + 
          ' IN (' + $df.pivot->toOne().inValues->map(v | $v->generateSnowflakeExpression())->joinStrings(', ') + '))')
 }
 
@@ -200,7 +200,15 @@ function <<access.private>> meta::pure::dsl::snowflake::generateWithClause(df: D
 function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeDataSource(source: DataSource[1]): String[1]
 {
    $source->match([
-      t: TableReference[1] | if($t.schema->isNotEmpty(), $t.schema->toOne() + '.', '') + $t.tableName + if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), ''),
+      t: TableReference[1] | 
+         if($t.tableName == 'inline_tds' && $t.inlineTDSData->isNotEmpty(),
+            | '(SELECT ' + $t.inlineTDSData->toOne().columns->joinStrings(', ') + ' FROM VALUES ' + 
+              $t.inlineTDSData->toOne().rows->map(row | 
+                 '(' + $row->map(cell | generateSnowflakeLiteral($cell))->joinStrings(', ') + ')'
+               )->joinStrings(', ') + ')' + 
+               if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), ''),
+            | if($t.schema->isNotEmpty(), $t.schema->toOne() + '.', '') + $t.tableName + if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), '')
+         ),
       j: JoinOperation[1] | 
          let joinType = $j.joinType->generateSnowflakeJoinType();
          let joinCondition = if($j.usingColumns->isNotEmpty(),
@@ -460,6 +468,10 @@ function meta::pure::dsl::snowflake::handleInlineTDS(df: DataFrame[1]): String[1
 // Helper function to get inline TDS values
 function meta::pure::dsl::snowflake::getInlineTDSValues(df: DataFrame[1]): String[1]
 {
-   // Generate values clause for inline TDS
-   'TODO: Implement conversion of TDS data to VALUES syntax'
+   if($df.source->instanceOf(TableReference) && $df.source->cast(@TableReference).inlineTDSData->isNotEmpty(),
+      | $df.source->cast(@TableReference).inlineTDSData->toOne().rows->map(row | 
+          '(' + $row->map(cell | generateSnowflakeLiteral($cell))->joinStrings(', ') + ')'
+        )->joinStrings(', '),
+      | 'ERROR: No inline TDS data found'
+   )
 }

@@ -18,14 +18,14 @@ import meta::pure::dsl::dataframe::metamodel::*;
 /**
  * Core DataFrame DSL for modeling SQL SELECT statements
  * This DSL provides a unified interface for creating SQL queries that can be
- * executed against both Snowflake and DuckDB databases.
+ * executed against Snowflake, DuckDB, and BigQuery databases.
  */
 
 // Core DataFrame metamodel
 Class meta::pure::dsl::dataframe::metamodel::DataFrame
 {
    columns : Column[*];
-   source : DataSource[0..1];
+   source : Source[0..1];
    filter : FilterCondition[0..1];
    groupBy : GroupByClause[0..1];
    having : FilterCondition[0..1];
@@ -33,234 +33,252 @@ Class meta::pure::dsl::dataframe::metamodel::DataFrame
    limit : Integer[0..1];
    offset : Integer[0..1];
    distinct : Boolean[0..1];
+   ctes : CommonTableExpression[*];
+   qualify : FilterCondition[0..1];
 }
 
-// Column representation
+;// Column representation
 Class meta::pure::dsl::dataframe::metamodel::Column
 {
    name : String[1];
-   expression : Expression[1];
    alias : String[0..1];
 }
 
-// Abstract base class for all expressions
-Class meta::pure::dsl::dataframe::metamodel::Expression
+;// Abstract base class for all columns
+Class meta::pure::dsl::dataframe::metamodel::ColumnReference extends Column
 {
+   tableName : String[0..1];
 }
 
-// Literal value expression
-Class meta::pure::dsl::dataframe::metamodel::LiteralExpression extends Expression
+;// Literal column
+Class meta::pure::dsl::dataframe::metamodel::LiteralColumn extends Column
 {
    value : Any[1];
 }
 
-// Column reference expression
-Class meta::pure::dsl::dataframe::metamodel::ColumnReference extends Expression
+;// Function column
+Class meta::pure::dsl::dataframe::metamodel::FunctionColumn extends Column
 {
-   columnName : String[1];
-   tableAlias : String[0..1];
+   name : String[1];
+   arguments : Column[*];
 }
 
-// Function call expression
-Class meta::pure::dsl::dataframe::metamodel::FunctionExpression extends Expression
+;// Case column
+Class meta::pure::dsl::dataframe::metamodel::CaseColumn extends Column
 {
-   functionName : String[1];
-   parameters : Expression[*];
+   condition : Column[0..1];
+   whenClauses : WhenClause[*];
+   elseResult : Column[0..1];
 }
 
-// Data source (table, subquery, etc.)
-Class meta::pure::dsl::dataframe::metamodel::DataSource
+;// When clause for CASE expressions
+Class meta::pure::dsl::dataframe::metamodel::WhenClause
+{
+   condition : Column[1];
+   result : Column[1];
+}
+
+;// Window function column
+Class meta::pure::dsl::dataframe::metamodel::WindowFunctionColumn extends Column
+{
+   function : FunctionColumn[1];
+   partitionBy : Column[*];
+   orderBy : OrderByClause[*];
+   frameClause : FrameClause[0..1];
+}
+
+;// Frame clause for window functions
+Class meta::pure::dsl::dataframe::metamodel::FrameClause
+{
+   type : FrameType[1];
+   start : FrameBoundary[1];
+   startOffset : Integer[0..1];
+   end : FrameBoundary[1];
+   endOffset : Integer[0..1];
+}
+
+;// Frame types
+Enum meta::pure::dsl::dataframe::metamodel::FrameType
+{
+   ROWS,
+   RANGE
+}
+
+;// Frame boundary types
+Enum meta::pure::dsl::dataframe::metamodel::FrameBoundary
+{
+   UNBOUNDED_PRECEDING,
+   CURRENT_ROW,
+   UNBOUNDED_FOLLOWING,
+   PRECEDING,
+   FOLLOWING
+}
+
+;// Subquery column
+Class meta::pure::dsl::dataframe::metamodel::SubqueryColumn extends Column
+{
+   query : DataFrame[1];
+}
+
+;// PIVOT column
+Class meta::pure::dsl::dataframe::metamodel::PivotColumn extends Column
+{
+   aggregateFunction : FunctionColumn[1];
+   pivotColumn : Column[1];
+   pivotValues : LiteralColumn[*];
+}
+
+;// UNPIVOT column
+Class meta::pure::dsl::dataframe::metamodel::UnpivotColumn extends Column
+{
+   nameColumn : String[1];
+   valueColumn : String[1];
+   columns : Column[*];
+   includeNulls : Boolean[0..1];
+}
+
+;// Data source (table, subquery, etc.)
+Class meta::pure::dsl::dataframe::metamodel::Source
 {
 }
 
-// Table reference
-Class meta::pure::dsl::dataframe::metamodel::TableReference extends DataSource
+;// Table source
+Class meta::pure::dsl::dataframe::metamodel::TableSource extends Source
 {
-   tableName : String[1];
+   name : String[1];
    schema : String[0..1];
    alias : String[0..1];
+   tableSchema : TableSchema<Any>[0..1]; // Optional reference to table schema
 }
 
-// Join operation
-Class meta::pure::dsl::dataframe::metamodel::JoinOperation extends DataSource
+;// Common Table Expression (CTE) for WITH clause
+Class meta::pure::dsl::dataframe::metamodel::CommonTableExpression
 {
-   left : DataSource[1];
-   right : DataSource[1];
-   joinType : JoinType[1];
-   condition : FilterCondition[1];
+   name : String[1];
+   columns : String[*];
+   query : Any[1]; // Can be DataFrame or String
+   isRecursive : Boolean[0..1];
 }
 
-// Join types
+;// Join source
+Class meta::pure::dsl::dataframe::metamodel::JoinSource extends Source
+{
+   left : Source[1];
+   right : Source[1];
+   type : JoinType[1];
+   condition : Column[1];
+}
+
+;// Join types
 Enum meta::pure::dsl::dataframe::metamodel::JoinType
 {
    INNER,
-   LEFT_OUTER,
-   RIGHT_OUTER,
-   FULL_OUTER,
+   LEFT,
+   RIGHT,
+   FULL,
    CROSS
 }
 
-// Subquery as a data source
-Class meta::pure::dsl::dataframe::metamodel::SubquerySource extends DataSource
+;// Subquery source
+Class meta::pure::dsl::dataframe::metamodel::SubquerySource extends Source
 {
-   dataFrame : DataFrame[1];
-   alias : String[1];
+   query : DataFrame[1];
+   alias : String[0..1];
 }
 
-// Filter condition
-Class meta::pure::dsl::dataframe::metamodel::FilterCondition extends Expression
+;// PIVOT source
+Class meta::pure::dsl::dataframe::metamodel::PivotSource extends Source
+{
+   source : Source[1];
+   aggregateFunction : FunctionColumn[1];
+   pivotColumn : Column[1];
+   pivotValues : Column[*];
+   alias : String[0..1];
+}
+
+;// UNPIVOT source
+Class meta::pure::dsl::dataframe::metamodel::UnpivotSource extends Source
+{
+   source : Source[1];
+   nameColumn : String[1];
+   valueColumn : String[1];
+   columns : Column[*];
+   includeNulls : Boolean[0..1];
+   alias : String[0..1];
+}
+
+;// LATERAL JOIN source
+Class meta::pure::dsl::dataframe::metamodel::LateralJoinSource extends Source
+{
+   left : Source[1];
+   right : DataFrame[1];
+   type : JoinType[1];
+   condition : Column[0..1];
+   alias : String[0..1];
+}
+
+;// Filter condition
+Class meta::pure::dsl::dataframe::metamodel::FilterCondition
 {
 }
 
-// Binary operation (e.g., =, >, <, etc.)
-Class meta::pure::dsl::dataframe::metamodel::BinaryOperation extends FilterCondition
-{
-   left : Expression[1];
-   operator : BinaryOperator[1];
-   right : Expression[1];
-}
-
-// Binary operators
-Enum meta::pure::dsl::dataframe::metamodel::BinaryOperator
-{
-   EQUALS,
-   NOT_EQUALS,
-   GREATER_THAN,
-   LESS_THAN,
-   GREATER_THAN_OR_EQUALS,
-   LESS_THAN_OR_EQUALS,
-   AND,
-   OR,
-   LIKE,
-   IN,
-   NOT_IN,
-   IS_NULL,
-   IS_NOT_NULL
-}
-
-// Unary operation (e.g., NOT)
-Class meta::pure::dsl::dataframe::metamodel::UnaryOperation extends FilterCondition
-{
-   operator : UnaryOperator[1];
-   expression : Expression[1];
-}
-
-// Unary operators
-Enum meta::pure::dsl::dataframe::metamodel::UnaryOperator
-{
-   NOT
-}
-
-// Group by clause
+;// Group by clause
 Class meta::pure::dsl::dataframe::metamodel::GroupByClause
 {
-   columns : Expression[*];
+   columns : Column[*];
+   type : GroupByType[0..1];
+   groupingSets : GroupingSet[*];
 }
 
-// Order by clause
+;// Grouping set for GROUPING SETS
+Class meta::pure::dsl::dataframe::metamodel::GroupingSet
+{
+   columns : Column[*];
+}
+
+;// Group by types
+Enum meta::pure::dsl::dataframe::metamodel::GroupByType
+{
+   STANDARD,
+   CUBE,
+   ROLLUP
+}
+
+;// Order by clause
 Class meta::pure::dsl::dataframe::metamodel::OrderByClause
 {
-   expression : Expression[1];
+   column : Column[1];
    direction : SortDirection[1];
+   nulls : NullsOrder[0..1];
 }
 
-// Sort direction
+;// Sort direction
 Enum meta::pure::dsl::dataframe::metamodel::SortDirection
 {
    ASC,
    DESC
 }
 
-// Aggregate functions
-Class meta::pure::dsl::dataframe::metamodel::AggregateFunction extends FunctionExpression
+;// Nulls order
+Enum meta::pure::dsl::dataframe::metamodel::NullsOrder
 {
+   FIRST,
+   LAST
 }
 
-// Common aggregate functions
-Class meta::pure::dsl::dataframe::metamodel::CountFunction extends AggregateFunction
+;// Table schema for type-safe operations
+Class meta::pure::dsl::dataframe::metamodel::TableSchema<T>
 {
-   distinct : Boolean[0..1];
+   name : String[1];
+   columns : String[*];
 }
 
-Class meta::pure::dsl::dataframe::metamodel::SumFunction extends AggregateFunction
+;// Database enum
+Enum meta::pure::dsl::dataframe::Database
 {
-}
-
-Class meta::pure::dsl::dataframe::metamodel::AvgFunction extends AggregateFunction
-{
-}
-
-Class meta::pure::dsl::dataframe::metamodel::MinFunction extends AggregateFunction
-{
-}
-
-Class meta::pure::dsl::dataframe::metamodel::MaxFunction extends AggregateFunction
-{
-}
-
-// Window function classes
-Class meta::pure::dsl::dataframe::metamodel::WindowFunction extends FunctionExpression
-{
-   window : Window[1];
-}
-
-Class meta::pure::dsl::dataframe::metamodel::Window
-{
-   partitionBy : Expression[*];
-   orderBy : OrderByClause[*];
-   frameType : WindowFrameType[0..1];
-   frameStart : WindowFrameBound[0..1];
-   frameEnd : WindowFrameBound[0..1];
-}
-
-Enum meta::pure::dsl::dataframe::metamodel::WindowFrameType
-{
-   ROWS,
-   RANGE
-}
-
-Class meta::pure::dsl::dataframe::metamodel::WindowFrameBound
-{
-   type : WindowFrameBoundType[1];
-   offset : Integer[0..1];
-}
-
-Enum meta::pure::dsl::dataframe::metamodel::WindowFrameBoundType
-{
-   UNBOUNDED_PRECEDING,
-   PRECEDING,
-   CURRENT_ROW,
-   FOLLOWING,
-   UNBOUNDED_FOLLOWING
-}
-
-// Specialized window functions
-Class meta::pure::dsl::dataframe::metamodel::RowNumberFunction extends WindowFunction
-{
-}
-
-Class meta::pure::dsl::dataframe::metamodel::RankFunction extends WindowFunction
-{
-}
-
-Class meta::pure::dsl::dataframe::metamodel::DenseRankFunction extends WindowFunction
-{
-}
-
-Class meta::pure::dsl::dataframe::metamodel::LeadLagFunction extends WindowFunction
-{
-   offset : Expression[0..1];
-   defaultValue : Expression[0..1];
-   ignoreNulls : Boolean[0..1];
-}
-
-Class meta::pure::dsl::dataframe::metamodel::FirstLastValueFunction extends WindowFunction
-{
-   ignoreNulls : Boolean[0..1];
-}
-
-Class meta::pure::dsl::dataframe::metamodel::AggregateWindowFunction extends WindowFunction
-{
+   SNOWFLAKE,
+   DUCKDB,
+   BIGQUERY
 }
 
 // Factory functions for creating DataFrame objects
@@ -269,220 +287,370 @@ function meta::pure::dsl::dataframe::newDataFrame(): DataFrame[1]
    ^DataFrame(columns = [], distinct = false)
 }
 
-function meta::pure::dsl::dataframe::select(columns: Column[*]): DataFrame[1]
+;function meta::pure::dsl::dataframe::select(columns: Column[*]);: DataFrame[1]
 {
    ^DataFrame(columns = $columns, distinct = false)
 }
 
-function meta::pure::dsl::dataframe::selectDistinct(columns: Column[*]): DataFrame[1]
+;function meta::pure::dsl::dataframe::selectDistinct(columns: Column[*]);: DataFrame[1]
 {
    ^DataFrame(columns = $columns, distinct = true)
 }
 
-function meta::pure::dsl::dataframe::from(df: DataFrame[1], source: DataSource[1]): DataFrame[1]
+;function meta::pure::dsl::dataframe::from(df: DataFrame[1], source: Source[1]);: DataFrame[1]
 {
    ^$df(source = $source)
 }
 
-function meta::pure::dsl::dataframe::where(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
+;function meta::pure::dsl::dataframe::where(df: DataFrame[1], condition: FilterCondition[1]);: DataFrame[1]
 {
    ^$df(filter = $condition)
 }
 
-function meta::pure::dsl::dataframe::groupBy(df: DataFrame[1], columns: Expression[*]): DataFrame[1]
+;function meta::pure::dsl::dataframe::groupBy(df: DataFrame[1], columns: Column[*]);: DataFrame[1]
 {
-   ^$df(groupBy = ^GroupByClause(columns = $columns))
+   ^$df(groupBy = ^GroupByClause(columns = $columns, type = GroupByType.STANDARD))
 }
 
-function meta::pure::dsl::dataframe::having(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
+;function meta::pure::dsl::dataframe::groupByCube(df: DataFrame[1], columns: Column[*]);: DataFrame[1]
+{
+   ^$df(groupBy = ^GroupByClause(columns = $columns, type = GroupByType.CUBE))
+}
+
+;function meta::pure::dsl::dataframe::groupByRollup(df: DataFrame[1], columns: Column[*]);: DataFrame[1]
+{
+   ^$df(groupBy = ^GroupByClause(columns = $columns, type = GroupByType.ROLLUP))
+}
+
+;function meta::pure::dsl::dataframe::groupByGroupingSets(df: DataFrame[1], groupingSets: GroupingSet[*]);: DataFrame[1]
+{
+   ^$df(groupBy = ^GroupByClause(groupingSets = $groupingSets))
+}
+
+;function meta::pure::dsl::dataframe::groupingSet(columns: Column[*]);: GroupingSet[1]
+{
+   ^GroupingSet(columns = $columns)
+}
+
+;function meta::pure::dsl::dataframe::having(df: DataFrame[1], condition: FilterCondition[1]);: DataFrame[1]
 {
    ^$df(having = $condition)
 }
 
-function meta::pure::dsl::dataframe::orderBy(df: DataFrame[1], clauses: OrderByClause[*]): DataFrame[1]
+;function meta::pure::dsl::dataframe::qualify(df: DataFrame[1], condition: FilterCondition[1]);: DataFrame[1]
+{
+   ^$df(qualify = $condition)
+}
+
+;function meta::pure::dsl::dataframe::orderBy(df: DataFrame[1], clauses: OrderByClause[*]);: DataFrame[1]
 {
    ^$df(orderBy = $clauses)
 }
 
-function meta::pure::dsl::dataframe::limit(df: DataFrame[1], limit: Integer[1]): DataFrame[1]
+;function meta::pure::dsl::dataframe::limit(df: DataFrame[1], limit: Integer[1]);: DataFrame[1]
 {
    ^$df(limit = $limit)
 }
 
-function meta::pure::dsl::dataframe::offset(df: DataFrame[1], offset: Integer[1]): DataFrame[1]
+;function meta::pure::dsl::dataframe::offset(df: DataFrame[1], offset: Integer[1]);: DataFrame[1]
 {
    ^$df(offset = $offset)
 }
 
-// Helper functions for creating expressions
-function meta::pure::dsl::dataframe::col(name: String[1]): ColumnReference[1]
+;// Helper functions for column operations
+function meta::pure::dsl::dataframe::col(name: String[1]);: ColumnReference[1]
 {
-   ^ColumnReference(columnName = $name)
+   ^ColumnReference(name = $name)
 }
 
-function meta::pure::dsl::dataframe::col(tableName: String[1], columnName: String[1]): ColumnReference[1]
+;function meta::pure::dsl::dataframe::col(tableName: String[1], columnName: String[1]);: ColumnReference[1]
 {
-   ^ColumnReference(columnName = $columnName, tableAlias = $tableName)
+   ^ColumnReference(name = $columnName, tableName = $tableName)
 }
 
-function meta::pure::dsl::dataframe::literal(value: Any[1]): LiteralExpression[1]
+;function meta::pure::dsl::dataframe::literal(value: Any[1]);: LiteralColumn[1]
 {
-   ^LiteralExpression(value = $value)
+   ^LiteralColumn(name = 'literal_' + $value->toString(), value = $value)
 }
 
-function meta::pure::dsl::dataframe::as(expr: Expression[1], alias: String[1]): Column[1]
+;function meta::pure::dsl::dataframe::as(column: Column[1], alias: String[1]);: Column[1]
 {
-   ^Column(name = $alias, expression = $expr, alias = $alias)
+   ^$column(alias = $alias)
 }
 
-// Helper functions for creating conditions
-function meta::pure::dsl::dataframe::eq(left: Expression[1], right: Expression[1]): BinaryOperation[1]
+;// Helper functions for creating conditions
+function meta::pure::dsl::dataframe::eq(left: Column[1], right: Column[1]);: FilterCondition[1]
 {
-   ^BinaryOperation(left = $left, operator = BinaryOperator.EQUALS, right = $right)
+   ^FilterCondition(left = $left, operator = 'EQUALS', right = $right)
 }
 
-function meta::pure::dsl::dataframe::neq(left: Expression[1], right: Expression[1]): BinaryOperation[1]
+;function meta::pure::dsl::dataframe::neq(left: Column[1], right: Column[1]);: FilterCondition[1]
 {
-   ^BinaryOperation(left = $left, operator = BinaryOperator.NOT_EQUALS, right = $right)
+   ^FilterCondition(left = $left, operator = 'NOT_EQUALS', right = $right)
 }
 
-function meta::pure::dsl::dataframe::gt(left: Expression[1], right: Expression[1]): BinaryOperation[1]
+;function meta::pure::dsl::dataframe::gt(left: Column[1], right: Column[1]);: FilterCondition[1]
 {
-   ^BinaryOperation(left = $left, operator = BinaryOperator.GREATER_THAN, right = $right)
+   ^FilterCondition(left = $left, operator = 'GREATER_THAN', right = $right)
 }
 
-function meta::pure::dsl::dataframe::lt(left: Expression[1], right: Expression[1]): BinaryOperation[1]
+;function meta::pure::dsl::dataframe::lt(left: Column[1], right: Column[1]);: FilterCondition[1]
 {
-   ^BinaryOperation(left = $left, operator = BinaryOperator.LESS_THAN, right = $right)
+   ^FilterCondition(left = $left, operator = 'LESS_THAN', right = $right)
 }
 
-function meta::pure::dsl::dataframe::gte(left: Expression[1], right: Expression[1]): BinaryOperation[1]
+;function meta::pure::dsl::dataframe::gte(left: Column[1], right: Column[1]);: FilterCondition[1]
 {
-   ^BinaryOperation(left = $left, operator = BinaryOperator.GREATER_THAN_OR_EQUALS, right = $right)
+   ^FilterCondition(left = $left, operator = 'GREATER_THAN_OR_EQUALS', right = $right)
 }
 
-function meta::pure::dsl::dataframe::lte(left: Expression[1], right: Expression[1]): BinaryOperation[1]
+;function meta::pure::dsl::dataframe::lte(left: Column[1], right: Column[1]);: FilterCondition[1]
 {
-   ^BinaryOperation(left = $left, operator = BinaryOperator.LESS_THAN_OR_EQUALS, right = $right)
+   ^FilterCondition(left = $left, operator = 'LESS_THAN_OR_EQUALS', right = $right)
 }
 
-function meta::pure::dsl::dataframe::and(left: FilterCondition[1], right: FilterCondition[1]): BinaryOperation[1]
+;function meta::pure::dsl::dataframe::and(left: FilterCondition[1], right: FilterCondition[1]);: FilterCondition[1]
 {
-   ^BinaryOperation(left = $left, operator = BinaryOperator.AND, right = $right)
+   ^FilterCondition(left = $left, operator = 'AND', right = $right)
 }
 
-function meta::pure::dsl::dataframe::or(left: FilterCondition[1], right: FilterCondition[1]): BinaryOperation[1]
+;function meta::pure::dsl::dataframe::or(left: FilterCondition[1], right: FilterCondition[1]);: FilterCondition[1]
 {
-   ^BinaryOperation(left = $left, operator = BinaryOperator.OR, right = $right)
+   ^FilterCondition(left = $left, operator = 'OR', right = $right)
 }
 
-function meta::pure::dsl::dataframe::not(expr: FilterCondition[1]): UnaryOperation[1]
+;function meta::pure::dsl::dataframe::not(expr: FilterCondition[1]);: FilterCondition[1]
 {
-   ^UnaryOperation(operator = UnaryOperator.NOT, expression = $expr)
+   ^FilterCondition(operator = 'NOT', right = $expr)
 }
 
-function meta::pure::dsl::dataframe::like(expr: Expression[1], pattern: String[1]): BinaryOperation[1]
+;function meta::pure::dsl::dataframe::like(expr: Column[1], pattern: String[1]);: FilterCondition[1]
 {
-   ^BinaryOperation(left = $expr, operator = BinaryOperator.LIKE, right = ^LiteralExpression(value = $pattern))
+   ^FilterCondition(left = $expr, operator = 'LIKE', right = ^LiteralColumn(name = 'pattern', value = $pattern))
 }
 
-function meta::pure::dsl::dataframe::isNull(expr: Expression[1]): BinaryOperation[1]
+;function meta::pure::dsl::dataframe::isNull(expr: Column[1]);: FilterCondition[1]
 {
-   ^BinaryOperation(left = $expr, operator = BinaryOperator.IS_NULL, right = ^LiteralExpression(value = 'null'))
+   ^FilterCondition(left = $expr, operator = 'IS_NULL');
 }
 
-function meta::pure::dsl::dataframe::isNotNull(expr: Expression[1]): BinaryOperation[1]
+;function meta::pure::dsl::dataframe::isNotNull(expr: Column[1]);: FilterCondition[1]
 {
-   ^BinaryOperation(left = $expr, operator = BinaryOperator.IS_NOT_NULL, right = ^LiteralExpression(value = 'null'))
+   ^FilterCondition(left = $expr, operator = 'IS_NOT_NULL');
 }
 
-// Helper functions for creating data sources
-function meta::pure::dsl::dataframe::table(name: String[1]): TableReference[1]
+;// Helper functions for creating data sources
+function meta::pure::dsl::dataframe::table(name: String[1]);: TableSource[1]
 {
-   ^TableReference(tableName = $name)
+   ^TableSource(name = $name);
 }
 
-function meta::pure::dsl::dataframe::table(schema: String[1], name: String[1]): TableReference[1]
+;function meta::pure::dsl::dataframe::table(schema: String[1], name: String[1]);: TableSource[1]
 {
-   ^TableReference(tableName = $name, schema = $schema)
+   ^TableSource(name = $name, schema = $schema);
 }
 
-function meta::pure::dsl::dataframe::tableAs(name: String[1], alias: String[1]): TableReference[1]
+;function meta::pure::dsl::dataframe::tableAs(name: String[1], alias: String[1]);: TableSource[1]
 {
-   ^TableReference(tableName = $name, alias = $alias)
+   ^TableSource(name = $name, alias = $alias);
 }
 
-function meta::pure::dsl::dataframe::tableAs(schema: String[1], name: String[1], alias: String[1]): TableReference[1]
+;function meta::pure::dsl::dataframe::tableAs(schema: String[1], name: String[1], alias: String[1]);: TableSource[1]
 {
-   ^TableReference(tableName = $name, schema = $schema, alias = $alias)
+   ^TableSource(name = $name, schema = $schema, alias = $alias);
 }
 
-function meta::pure::dsl::dataframe::join(left: DataSource[1], right: DataSource[1], condition: FilterCondition[1]): JoinOperation[1]
+;function meta::pure::dsl::dataframe::tableWithSchema<T>(name: String[1], schema: TableSchema<T>[1]);: TableSource[1]
 {
-   ^JoinOperation(left = $left, right = $right, joinType = JoinType.INNER, condition = $condition)
+   ^TableSource(name = $name, tableSchema = $schema);
 }
 
-function meta::pure::dsl::dataframe::leftJoin(left: DataSource[1], right: DataSource[1], condition: FilterCondition[1]): JoinOperation[1]
+;function meta::pure::dsl::dataframe::tableWithSchemaAs<T>(name: String[1], schema: TableSchema<T>[1], alias: String[1]);: TableSource[1]
 {
-   ^JoinOperation(left = $left, right = $right, joinType = JoinType.LEFT_OUTER, condition = $condition)
+   ^TableSource(name = $name, tableSchema = $schema, alias = $alias);
 }
 
-function meta::pure::dsl::dataframe::rightJoin(left: DataSource[1], right: DataSource[1], condition: FilterCondition[1]): JoinOperation[1]
+;// Join functions
+function meta::pure::dsl::dataframe::join(left: Source[1], right: Source[1], condition: Column[1]);: JoinSource[1]
 {
-   ^JoinOperation(left = $left, right = $right, joinType = JoinType.RIGHT_OUTER, condition = $condition)
+   ^JoinSource(left = $left, right = $right, type = JoinType.INNER, condition = $condition);
 }
 
-function meta::pure::dsl::dataframe::fullJoin(left: DataSource[1], right: DataSource[1], condition: FilterCondition[1]): JoinOperation[1]
+;function meta::pure::dsl::dataframe::leftJoin(left: Source[1], right: Source[1], condition: Column[1]);: JoinSource[1]
 {
-   ^JoinOperation(left = $left, right = $right, joinType = JoinType.FULL_OUTER, condition = $condition)
+   ^JoinSource(left = $left, right = $right, type = JoinType.LEFT, condition = $condition);
 }
 
-function meta::pure::dsl::dataframe::crossJoin(left: DataSource[1], right: DataSource[1]): JoinOperation[1]
+;function meta::pure::dsl::dataframe::rightJoin(left: Source[1], right: Source[1], condition: Column[1]);: JoinSource[1]
 {
-   ^JoinOperation(left = $left, right = $right, joinType = JoinType.CROSS, condition = ^BinaryOperation(left = ^LiteralExpression(value = true), operator = BinaryOperator.EQUALS, right = ^LiteralExpression(value = true)))
+   ^JoinSource(left = $left, right = $right, type = JoinType.RIGHT, condition = $condition);
 }
 
-// Helper functions for creating aggregate functions
-function meta::pure::dsl::dataframe::count(expr: Expression[1]): CountFunction[1]
+;function meta::pure::dsl::dataframe::fullJoin(left: Source[1], right: Source[1], condition: Column[1]);: JoinSource[1]
 {
-   ^CountFunction(functionName = 'count', parameters = [$expr], distinct = false)
+   ^JoinSource(left = $left, right = $right, type = JoinType.FULL, condition = $condition);
 }
 
-function meta::pure::dsl::dataframe::countDistinct(expr: Expression[1]): CountFunction[1]
+;function meta::pure::dsl::dataframe::crossJoin(left: Source[1], right: Source[1]);: JoinSource[1]
 {
-   ^CountFunction(functionName = 'count', parameters = [$expr], distinct = true)
+   ^JoinSource(left = $left, right = $right, type = JoinType.CROSS, condition = ^LiteralColumn(name = 'true', value = true));
 }
 
-function meta::pure::dsl::dataframe::sum(expr: Expression[1]): SumFunction[1]
+;// LATERAL JOIN functions
+function meta::pure::dsl::dataframe::lateralJoin(left: Source[1], right: DataFrame[1], type: JoinType[1]);: LateralJoinSource[1]
 {
-   ^SumFunction(functionName = 'sum', parameters = [$expr])
+   ^LateralJoinSource(left = $left, right = $right, type = $type);
 }
 
-function meta::pure::dsl::dataframe::avg(expr: Expression[1]): AvgFunction[1]
+;function meta::pure::dsl::dataframe::lateralJoin(left: Source[1], right: DataFrame[1], type: JoinType[1], condition: Column[1]);: LateralJoinSource[1]
 {
-   ^AvgFunction(functionName = 'avg', parameters = [$expr])
+   ^LateralJoinSource(left = $left, right = $right, type = $type, condition = $condition);
 }
 
-function meta::pure::dsl::dataframe::min(expr: Expression[1]): MinFunction[1]
+;// PIVOT and UNPIVOT functions
+function meta::pure::dsl::dataframe::pivot(source: Source[1], pivotColumn: Column[1], valueColumn: Column[1], pivotValues: Column[*]);: PivotSource[1]
 {
-   ^MinFunction(functionName = 'min', parameters = [$expr])
+   ^PivotSource(source = $source, pivotColumn = $pivotColumn, aggregateFunction = ^FunctionColumn(name = 'MAX', arguments = [$valueColumn]), pivotValues = $pivotValues);
 }
 
-function meta::pure::dsl::dataframe::max(expr: Expression[1]): MaxFunction[1]
+;function meta::pure::dsl::dataframe::pivotAs(source: Source[1], pivotColumn: Column[1], valueColumn: Column[1], pivotValues: Column[*], alias: String[1]);: PivotSource[1]
 {
-   ^MaxFunction(functionName = 'max', parameters = [$expr])
+   ^PivotSource(source = $source, pivotColumn = $pivotColumn, aggregateFunction = ^FunctionColumn(name = 'MAX', arguments = [$valueColumn]), pivotValues = $pivotValues, alias = $alias);
 }
 
-// Helper functions for creating order by clauses
-function meta::pure::dsl::dataframe::asc(expr: Expression[1]): OrderByClause[1]
+;function meta::pure::dsl::dataframe::unpivot(source: Source[1], columns: Column[*], nameColumn: String[1], valueColumn: String[1]);: UnpivotSource[1]
 {
-   ^OrderByClause(expression = $expr, direction = SortDirection.ASC)
+   ^UnpivotSource(source = $source, columns = $columns, nameColumn = $nameColumn, valueColumn = $valueColumn, includeNulls = false);
 }
 
-function meta::pure::dsl::dataframe::desc(expr: Expression[1]): OrderByClause[1]
+;function meta::pure::dsl::dataframe::unpivotAs(source: Source[1], columns: Column[*], nameColumn: String[1], valueColumn: String[1], alias: String[1]);: UnpivotSource[1]
 {
-   ^OrderByClause(expression = $expr, direction = SortDirection.DESC)
+   ^UnpivotSource(source = $source, columns = $columns, nameColumn = $nameColumn, valueColumn = $valueColumn, includeNulls = false, alias = $alias);
 }
+<<<<<<< HEAD
+
+;// Aggregate functions
+function meta::pure::dsl::dataframe::count(expr: Column[1]);: FunctionColumn[1]
+{
+   ^FunctionColumn(name = 'COUNT', arguments = [$expr]);
+}
+
+;function meta::pure::dsl::dataframe::countDistinct(expr: Column[1]);: FunctionColumn[1]
+{
+   ^FunctionColumn(name = 'COUNT_DISTINCT', arguments = [$expr]);
+}
+
+;function meta::pure::dsl::dataframe::sum(expr: Column[1]);: FunctionColumn[1]
+{
+   ^FunctionColumn(name = 'SUM', arguments = [$expr]);
+}
+
+;function meta::pure::dsl::dataframe::avg(expr: Column[1]);: FunctionColumn[1]
+{
+   ^FunctionColumn(name = 'AVG', arguments = [$expr]);
+}
+
+;function meta::pure::dsl::dataframe::min(expr: Column[1]);: FunctionColumn[1]
+{
+   ^FunctionColumn(name = 'MIN', arguments = [$expr]);
+}
+
+;function meta::pure::dsl::dataframe::max(expr: Column[1]);: FunctionColumn[1]
+{
+   ^FunctionColumn(name = 'MAX', arguments = [$expr]);
+}
+
+;// Window functions
+function meta::pure::dsl::dataframe::over(func: FunctionColumn[1], partitionBy: Column[*], orderBy: OrderByClause[*]);: WindowFunctionColumn[1]
+{
+   ^WindowFunctionColumn(name = $func.name + '_OVER', function = $func, partitionBy = $partitionBy, orderBy = $orderBy);
+}
+
+;// Helper functions for creating order by clauses
+function meta::pure::dsl::dataframe::asc(expr: Column[1]);: OrderByClause[1]
+{
+   ^OrderByClause(column = $expr, direction = SortDirection.ASC);
+}
+
+;function meta::pure::dsl::dataframe::desc(expr: Column[1]);: OrderByClause[1]
+{
+   ^OrderByClause(column = $expr, direction = SortDirection.DESC);
+}
+
+;function meta::pure::dsl::dataframe::ascNullsFirst(expr: Column[1]);: OrderByClause[1]
+{
+   ^OrderByClause(column = $expr, direction = SortDirection.ASC, nulls = NullsOrder.FIRST);
+}
+
+;function meta::pure::dsl::dataframe::ascNullsLast(expr: Column[1]);: OrderByClause[1]
+{
+   ^OrderByClause(column = $expr, direction = SortDirection.ASC, nulls = NullsOrder.LAST);
+}
+
+;function meta::pure::dsl::dataframe::descNullsFirst(expr: Column[1]);: OrderByClause[1]
+{
+   ^OrderByClause(column = $expr, direction = SortDirection.DESC, nulls = NullsOrder.FIRST);
+}
+
+;function meta::pure::dsl::dataframe::descNullsLast(expr: Column[1]);: OrderByClause[1]
+{
+   ^OrderByClause(column = $expr, direction = SortDirection.DESC, nulls = NullsOrder.LAST);
+}
+
+;// WITH clause helper functions
+function meta::pure::dsl::dataframe::with(df: DataFrame[1], cte: CommonTableExpression[1]);: DataFrame[1]
+{
+   ^$df(ctes = $df.ctes->add($cte));
+}
+
+;function meta::pure::dsl::dataframe::with(df: DataFrame[1], ctes: CommonTableExpression[*]);: DataFrame[1]
+{
+   ^$df(ctes = $df.ctes->concatenate($ctes));
+}
+
+;function meta::pure::dsl::dataframe::cte(name: String[1], query: DataFrame[1]);: CommonTableExpression[1]
+{
+   ^CommonTableExpression(name = $name, query = $query, isRecursive = false);
+}
+
+;function meta::pure::dsl::dataframe::cte(name: String[1], columns: String[*], query: DataFrame[1]);: CommonTableExpression[1]
+{
+   ^CommonTableExpression(name = $name, columns = $columns, query = $query, isRecursive = false);
+}
+
+;function meta::pure::dsl::dataframe::recursiveCte(name: String[1], columns: String[*], query: DataFrame[1]);: CommonTableExpression[1]
+{
+   ^CommonTableExpression(name = $name, columns = $columns, query = $query, isRecursive = true);
+}
+
+;// SQL generation functions for different databases
+function meta::pure::dsl::dataframe::generateSQL(df: DataFrame[1], database: Database[1]);: String[1]
+{
+   $database->match([
+      SNOWFLAKE: {db | meta::pure::dsl::snowflake::generateSnowflakeSQL($df);},
+      DUCKDB: {db | meta::pure::dsl::duckdb::generateDuckDBSQL($df);},
+      BIGQUERY: {db | meta::pure::dsl::bigquery::generateBigQuerySQL($df);}
+   ]);
+}
+
+;// Convenience functions for generating SQL for specific databases
+function meta::pure::dsl::dataframe::generateSnowflakeSQL(df: DataFrame[1]);: String[1]
+{
+   meta::pure::dsl::snowflake::generateSnowflakeSQL($df);
+}
+
+;function meta::pure::dsl::dataframe::generateDuckDBSQL(df: DataFrame[1]);: String[1]
+{
+   meta::pure::dsl::duckdb::generateDuckDBSQL($df);
+}
+
+;function meta::pure::dsl::dataframe::generateBigQuerySQL(df: DataFrame[1]);: String[1]
+{
+   meta::pure::dsl::bigquery::generateBigQuerySQL($df);
+}
+;
+||||||| bdea5bd
+=======
 
 // Window function helper functions
 function meta::pure::dsl::dataframe::over(expr: Expression[1], window: Window[1]): WindowFunction[1]
@@ -677,3 +845,4 @@ function meta::pure::dsl::dataframe::count(expr: Expression[1]): FunctionExpress
 {
    ^FunctionExpression(functionName = 'count', parameters = [$expr]);
 }
+>>>>>>> master

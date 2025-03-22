@@ -22,7 +22,7 @@ import meta::pure::dsl::snowflake::*;
  */
 
 // Main function to generate Snowflake SQL from a DataFrame
-function meta::pure::dsl::snowflake::generateSnowflakeSQL(df: DataFrame[1]): String[1]
+function meta::pure::dsl::snowflake::generateSnowflakeSQL(df: DataFrame[1]);: String[1]
 {
    $df->generateSelectClause() + 
    $df->generateFromClause() + 
@@ -33,8 +33,8 @@ function meta::pure::dsl::snowflake::generateSnowflakeSQL(df: DataFrame[1]): Str
    $df->generateLimitOffsetClause()
 }
 
-// Generate the SELECT clause
-function <<access.private>> meta::pure::dsl::snowflake::generateSelectClause(df: DataFrame[1]): String[1]
+;// Generate the SELECT clause
+function <<access.private>> meta::pure::dsl::snowflake::generateSelectClause(df: DataFrame[1]);: String[1]
 {
    'SELECT ' + if($df.distinct == true, 'DISTINCT ', '') + 
    if($df.columns->isEmpty(), 
@@ -42,56 +42,56 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSelectClause(df:
       $df.columns->map(c | $c.expression->generateSnowflakeExpression() + if($c.alias->isNotEmpty(), ' AS ' + $c.alias->toOne(), ''))->joinStrings(', '))
 }
 
-// Generate the FROM clause
-function <<access.private>> meta::pure::dsl::snowflake::generateFromClause(df: DataFrame[1]): String[1]
+;// Generate the FROM clause
+function <<access.private>> meta::pure::dsl::snowflake::generateFromClause(df: DataFrame[1]);: String[1]
 {
    if($df.source->isEmpty(), 
       '', 
       '\nFROM ' + $df.source->toOne()->generateSnowflakeDataSource())
 }
 
-// Generate the WHERE clause
-function <<access.private>> meta::pure::dsl::snowflake::generateWhereClause(df: DataFrame[1]): String[1]
+;// Generate the WHERE clause
+function <<access.private>> meta::pure::dsl::snowflake::generateWhereClause(df: DataFrame[1]);: String[1]
 {
    if($df.filter->isEmpty(), 
       '', 
       '\nWHERE ' + $df.filter->toOne()->generateSnowflakeExpression())
 }
 
-// Generate the GROUP BY clause
-function <<access.private>> meta::pure::dsl::snowflake::generateGroupByClause(df: DataFrame[1]): String[1]
+;// Generate the GROUP BY clause
+function <<access.private>> meta::pure::dsl::snowflake::generateGroupByClause(df: DataFrame[1]);: String[1]
 {
    if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
       '', 
       '\nGROUP BY ' + $df.groupBy.columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', '))
 }
 
-// Generate the HAVING clause
-function <<access.private>> meta::pure::dsl::snowflake::generateHavingClause(df: DataFrame[1]): String[1]
+;// Generate the HAVING clause
+function <<access.private>> meta::pure::dsl::snowflake::generateHavingClause(df: DataFrame[1]);: String[1]
 {
    if($df.having->isEmpty(), 
       '', 
       '\nHAVING ' + $df.having->toOne()->generateSnowflakeExpression())
 }
 
-// Generate the ORDER BY clause
-function <<access.private>> meta::pure::dsl::snowflake::generateOrderByClause(df: DataFrame[1]): String[1]
+;// Generate the ORDER BY clause
+function <<access.private>> meta::pure::dsl::snowflake::generateOrderByClause(df: DataFrame[1]);: String[1]
 {
    if($df.orderBy->isEmpty(), 
       '', 
       '\nORDER BY ' + $df.orderBy->map(o | $o.expression->generateSnowflakeExpression() + ' ' + $o.direction->toString())->joinStrings(', '))
 }
 
-// Generate the LIMIT and OFFSET clauses
-function <<access.private>> meta::pure::dsl::snowflake::generateLimitOffsetClause(df: DataFrame[1]): String[1]
+;// Generate the LIMIT and OFFSET clauses
+function <<access.private>> meta::pure::dsl::snowflake::generateLimitOffsetClause(df: DataFrame[1]);: String[1]
 {
    let limitClause = if($df.limit->isEmpty(), '', '\nLIMIT ' + $df.limit->toOne()->toString());
    let offsetClause = if($df.offset->isEmpty(), '', '\nOFFSET ' + $df.offset->toOne()->toString());
    $limitClause + $offsetClause;
 }
 
-// Generate SQL for a data source
-function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeDataSource(source: DataSource[1]): String[1]
+;// Generate SQL for a data source
+function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeDataSource(source: DataSource[1]);: String[1]
 {
    $source->match([
       t: TableReference[1] | if($t.schema->isNotEmpty(), $t.schema->toOne() + '.', '') + $t.tableName + if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), ''),
@@ -110,7 +110,7 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeJoinTyp
       JoinType.RIGHT_OUTER | 'RIGHT OUTER JOIN',
       JoinType.FULL_OUTER | 'FULL OUTER JOIN',
       JoinType.CROSS | 'CROSS JOIN'
-   ])
+   ]);
 }
 
 // Generate SQL for expressions
@@ -123,7 +123,7 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeExpress
       b: BinaryOperation[1] | '(' + $b.left->generateSnowflakeExpression() + ' ' + $b.operator->generateSnowflakeBinaryOperator() + ' ' + $b.right->generateSnowflakeExpression() + ')',
       u: UnaryOperation[1] | $u.operator->generateSnowflakeUnaryOperator() + '(' + $u.expression->generateSnowflakeExpression() + ')',
       e: Expression[1] | 'UNKNOWN_EXPRESSION_TYPE'
-   ])
+   ]);
 }
 
 // Generate SQL for function expressions
@@ -134,7 +134,7 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeFunctio
       a: AggregateFunction[1] | $a.functionName->toUpperCase() + '(' + $a.parameters->map(p | $p->generateSnowflakeExpression())->joinStrings(', ') + ')',
       w: WindowFunction[1] | $w->generateSnowflakeWindowFunction(),
       f: FunctionExpression[1] | $f.functionName + '(' + $f.parameters->map(p | $p->generateSnowflakeExpression())->joinStrings(', ') + ')'
-   ])
+   ]);
 }
 
 // Generate SQL for window functions
@@ -214,7 +214,7 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeBinaryO
       BinaryOperator.NOT_IN | 'NOT IN',
       BinaryOperator.IS_NULL | 'IS NULL',
       BinaryOperator.IS_NOT_NULL | 'IS NOT NULL'
-   ])
+   ]);
 }
 
 // Generate SQL for unary operators
@@ -222,7 +222,7 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeUnaryOp
 {
    $op->match([
       UnaryOperator.NOT | 'NOT '
-   ])
+   ]);
 }
 
 // Generate SQL for literal values
@@ -236,5 +236,6 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeLiteral
       d: Date[1] | 'DATE \'' + $d->toString() + '\'',
       n: Nil[1] | 'NULL',
       a: Any[1] | $a->toString()
-   ])
+   ]);
 }
+;

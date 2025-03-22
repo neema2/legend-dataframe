@@ -198,6 +198,71 @@ Class meta::pure::dsl::dataframe::metamodel::MaxFunction extends AggregateFuncti
 {
 }
 
+// Window function classes
+Class meta::pure::dsl::dataframe::metamodel::WindowFunction extends FunctionExpression
+{
+   window : Window[1];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::Window
+{
+   partitionBy : Expression[*];
+   orderBy : OrderByClause[*];
+   frameType : WindowFrameType[0..1];
+   frameStart : WindowFrameBound[0..1];
+   frameEnd : WindowFrameBound[0..1];
+}
+
+Enum meta::pure::dsl::dataframe::metamodel::WindowFrameType
+{
+   ROWS,
+   RANGE
+}
+
+Class meta::pure::dsl::dataframe::metamodel::WindowFrameBound
+{
+   type : WindowFrameBoundType[1];
+   offset : Integer[0..1];
+}
+
+Enum meta::pure::dsl::dataframe::metamodel::WindowFrameBoundType
+{
+   UNBOUNDED_PRECEDING,
+   PRECEDING,
+   CURRENT_ROW,
+   FOLLOWING,
+   UNBOUNDED_FOLLOWING
+}
+
+// Specialized window functions
+Class meta::pure::dsl::dataframe::metamodel::RowNumberFunction extends WindowFunction
+{
+}
+
+Class meta::pure::dsl::dataframe::metamodel::RankFunction extends WindowFunction
+{
+}
+
+Class meta::pure::dsl::dataframe::metamodel::DenseRankFunction extends WindowFunction
+{
+}
+
+Class meta::pure::dsl::dataframe::metamodel::LeadLagFunction extends WindowFunction
+{
+   offset : Expression[0..1];
+   defaultValue : Expression[0..1];
+   ignoreNulls : Boolean[0..1];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::FirstLastValueFunction extends WindowFunction
+{
+   ignoreNulls : Boolean[0..1];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::AggregateWindowFunction extends WindowFunction
+{
+}
+
 // Factory functions for creating DataFrame objects
 function meta::pure::dsl::dataframe::newDataFrame(): DataFrame[1]
 {
@@ -417,4 +482,146 @@ function meta::pure::dsl::dataframe::asc(expr: Expression[1]): OrderByClause[1]
 function meta::pure::dsl::dataframe::desc(expr: Expression[1]): OrderByClause[1]
 {
    ^OrderByClause(expression = $expr, direction = SortDirection.DESC)
+}
+
+// Window function helper functions
+function meta::pure::dsl::dataframe::over(expr: Expression[1], window: Window[1]): WindowFunction[1]
+{
+   ^WindowFunction(functionName = 'window', parameters = [$expr], window = $window);
+}
+
+function meta::pure::dsl::dataframe::partitionBy(columns: Expression[*]): Window[1]
+{
+   ^Window(partitionBy = $columns, orderBy = []);
+}
+
+function meta::pure::dsl::dataframe::orderBy(window: Window[1], clauses: OrderByClause[*]): Window[1]
+{
+   ^$window(orderBy = $clauses);
+}
+
+function meta::pure::dsl::dataframe::rowsUnboundedPreceding(window: Window[1]): Window[1]
+{
+   ^$window(
+      frameType = WindowFrameType.ROWS, 
+      frameStart = ^WindowFrameBound(type = WindowFrameBoundType.UNBOUNDED_PRECEDING),
+      frameEnd = ^WindowFrameBound(type = WindowFrameBoundType.CURRENT_ROW)
+   );
+}
+
+function meta::pure::dsl::dataframe::rowsBetween(window: Window[1], start: WindowFrameBound[1], end: WindowFrameBound[1]): Window[1]
+{
+   ^$window(frameType = WindowFrameType.ROWS, frameStart = $start, frameEnd = $end);
+}
+
+function meta::pure::dsl::dataframe::rangeBetween(window: Window[1], start: WindowFrameBound[1], end: WindowFrameBound[1]): Window[1]
+{
+   ^$window(frameType = WindowFrameType.RANGE, frameStart = $start, frameEnd = $end);
+}
+
+function meta::pure::dsl::dataframe::unboundedPreceding(): WindowFrameBound[1]
+{
+   ^WindowFrameBound(type = WindowFrameBoundType.UNBOUNDED_PRECEDING);
+}
+
+function meta::pure::dsl::dataframe::unboundedFollowing(): WindowFrameBound[1]
+{
+   ^WindowFrameBound(type = WindowFrameBoundType.UNBOUNDED_FOLLOWING);
+}
+
+function meta::pure::dsl::dataframe::currentRow(): WindowFrameBound[1]
+{
+   ^WindowFrameBound(type = WindowFrameBoundType.CURRENT_ROW);
+}
+
+function meta::pure::dsl::dataframe::preceding(offset: Integer[1]): WindowFrameBound[1]
+{
+   ^WindowFrameBound(type = WindowFrameBoundType.PRECEDING, offset = $offset);
+}
+
+function meta::pure::dsl::dataframe::following(offset: Integer[1]): WindowFrameBound[1]
+{
+   ^WindowFrameBound(type = WindowFrameBoundType.FOLLOWING, offset = $offset);
+}
+
+// Specific window functions
+function meta::pure::dsl::dataframe::rowNumber(window: Window[1]): RowNumberFunction[1]
+{
+   ^RowNumberFunction(functionName = 'row_number', parameters = [], window = $window);
+}
+
+function meta::pure::dsl::dataframe::rank(window: Window[1]): RankFunction[1]
+{
+   ^RankFunction(functionName = 'rank', parameters = [], window = $window);
+}
+
+function meta::pure::dsl::dataframe::denseRank(window: Window[1]): DenseRankFunction[1]
+{
+   ^DenseRankFunction(functionName = 'dense_rank', parameters = [], window = $window);
+}
+
+function meta::pure::dsl::dataframe::lead(expr: Expression[1], window: Window[1]): LeadLagFunction[1]
+{
+   ^LeadLagFunction(functionName = 'lead', parameters = [$expr], window = $window);
+}
+
+function meta::pure::dsl::dataframe::lead(expr: Expression[1], offset: Integer[1], window: Window[1]): LeadLagFunction[1]
+{
+   ^LeadLagFunction(functionName = 'lead', parameters = [$expr], window = $window, offset = literal($offset));
+}
+
+function meta::pure::dsl::dataframe::lead(expr: Expression[1], offset: Integer[1], defaultValue: Expression[1], window: Window[1]): LeadLagFunction[1]
+{
+   ^LeadLagFunction(functionName = 'lead', parameters = [$expr], window = $window, offset = literal($offset), defaultValue = $defaultValue);
+}
+
+function meta::pure::dsl::dataframe::lag(expr: Expression[1], window: Window[1]): LeadLagFunction[1]
+{
+   ^LeadLagFunction(functionName = 'lag', parameters = [$expr], window = $window);
+}
+
+function meta::pure::dsl::dataframe::lag(expr: Expression[1], offset: Integer[1], window: Window[1]): LeadLagFunction[1]
+{
+   ^LeadLagFunction(functionName = 'lag', parameters = [$expr], window = $window, offset = literal($offset));
+}
+
+function meta::pure::dsl::dataframe::lag(expr: Expression[1], offset: Integer[1], defaultValue: Expression[1], window: Window[1]): LeadLagFunction[1]
+{
+   ^LeadLagFunction(functionName = 'lag', parameters = [$expr], window = $window, offset = literal($offset), defaultValue = $defaultValue);
+}
+
+function meta::pure::dsl::dataframe::firstValue(expr: Expression[1], window: Window[1]): FirstLastValueFunction[1]
+{
+   ^FirstLastValueFunction(functionName = 'first_value', parameters = [$expr], window = $window);
+}
+
+function meta::pure::dsl::dataframe::lastValue(expr: Expression[1], window: Window[1]): FirstLastValueFunction[1]
+{
+   ^FirstLastValueFunction(functionName = 'last_value', parameters = [$expr], window = $window);
+}
+
+// Aggregate window functions
+function meta::pure::dsl::dataframe::sumOver(expr: Expression[1], window: Window[1]): AggregateWindowFunction[1]
+{
+   ^AggregateWindowFunction(functionName = 'sum', parameters = [$expr], window = $window);
+}
+
+function meta::pure::dsl::dataframe::avgOver(expr: Expression[1], window: Window[1]): AggregateWindowFunction[1]
+{
+   ^AggregateWindowFunction(functionName = 'avg', parameters = [$expr], window = $window);
+}
+
+function meta::pure::dsl::dataframe::minOver(expr: Expression[1], window: Window[1]): AggregateWindowFunction[1]
+{
+   ^AggregateWindowFunction(functionName = 'min', parameters = [$expr], window = $window);
+}
+
+function meta::pure::dsl::dataframe::maxOver(expr: Expression[1], window: Window[1]): AggregateWindowFunction[1]
+{
+   ^AggregateWindowFunction(functionName = 'max', parameters = [$expr], window = $window);
+}
+
+function meta::pure::dsl::dataframe::countOver(expr: Expression[1], window: Window[1]): AggregateWindowFunction[1]
+{
+   ^AggregateWindowFunction(functionName = 'count', parameters = [$expr], window = $window);
 }

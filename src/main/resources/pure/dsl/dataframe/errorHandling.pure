@@ -53,6 +53,30 @@ function meta::pure::dsl::dataframe::checkUnsupportedFeatures(df: DataFrame[1], 
    // Check QUALIFY support
    if($df.qualify->isNotEmpty() && !$supportedFeatures->get('QUALIFY')->defaultIfEmpty(false), 
       | throw('QUALIFY clause is not supported in ' + $database, []));
+   
+   // Check STRUCT output support
+   if($df.structOutput == true && !$supportedFeatures->get('STRUCT')->defaultIfEmpty(false), 
+      | throw('SELECT AS STRUCT is not supported in ' + $database, []));
+   
+   // Check VALUE output support
+   if($df.valueOutput == true && !$supportedFeatures->get('VALUE')->defaultIfEmpty(false), 
+      | throw('SELECT AS VALUE is not supported in ' + $database, []));
+   
+   // Check EXCEPT support
+   if($df.exceptColumns->isNotEmpty() && !$supportedFeatures->get('EXCEPT')->defaultIfEmpty(false), 
+      | throw('SELECT * EXCEPT is not supported in ' + $database, []));
+   
+   // Check REPLACE support
+   if($df.replaceColumns->isNotEmpty() && !$supportedFeatures->get('REPLACE')->defaultIfEmpty(false), 
+      | throw('SELECT * REPLACE is not supported in ' + $database, []));
+   
+   // Check DIFFERENTIAL_PRIVACY support
+   if($df.differentialPrivacy->isNotEmpty() && !$supportedFeatures->get('DIFFERENTIAL_PRIVACY')->defaultIfEmpty(false), 
+      | throw('WITH DIFFERENTIAL_PRIVACY is not supported in ' + $database, []));
+   
+   // Check AGGREGATION_THRESHOLD support
+   if($df.aggregationThreshold->isNotEmpty() && !$supportedFeatures->get('AGGREGATION_THRESHOLD')->defaultIfEmpty(false), 
+      | throw('WITH AGGREGATION_THRESHOLD is not supported in ' + $database, []));
 }
 
 // Helper function to create feature support map

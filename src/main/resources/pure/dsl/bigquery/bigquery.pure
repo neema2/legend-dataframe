@@ -29,7 +29,13 @@ function meta::pure::dsl::bigquery::generateBigQuerySQL(df: DataFrame[1]): Strin
       pair('CHANGES', false),
       pair('CONNECT_BY', false),
       pair('SAMPLE', false),
-      pair('QUALIFY', true)
+      pair('QUALIFY', true),
+      pair('STRUCT', true),
+      pair('VALUE', true),
+      pair('EXCEPT', true),
+      pair('REPLACE', true),
+      pair('DIFFERENTIAL_PRIVACY', true),
+      pair('AGGREGATION_THRESHOLD', true)
    ]);
    
    meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'BigQuery', $supportedFeatures);
@@ -66,11 +72,24 @@ function <<access.private>> meta::pure::dsl::bigquery::generateWithClause(df: Da
 // Generate the SELECT clause
 function <<access.private>> meta::pure::dsl::bigquery::generateSelectClause(df: DataFrame[1]): String[1]
 {
-   'SELECT ' + 
-   if($df.distinct, 'DISTINCT ', '') + 
+   let structPrefix = if($df.structOutput == true, 'AS STRUCT ', '');
+   let valuePrefix = if($df.valueOutput == true, 'AS VALUE ', '');
+   let prefix = $structPrefix + $valuePrefix;
+   
+   let exceptClause = if($df.exceptColumns->isEmpty(), 
+                         '', 
+                         ' EXCEPT (' + $df.exceptColumns->joinStrings(', ') + ')');
+   
+   let replaceClause = if($df.replaceColumns->isEmpty(), 
+                           '', 
+                           ' REPLACE (' + $df.replaceColumns->keyValues()->map(kv | 
+                                               $kv.first + ' AS ' + $kv.second->generateBigQueryExpression()
+                                            )->joinStrings(', ') + ')');
+   
+   'SELECT ' + if($df.distinct == true, 'DISTINCT ', '') + $prefix + 
    if($df.columns->isEmpty(), 
-      '*', 
-      $df.columns->map(c | $c->generateBigQueryExpression() + if($c.alias->isEmpty(), '', ' AS ' + $c.alias->toOne()))->joinStrings(', '));
+      '*' + $exceptClause + $replaceClause, 
+      $df.columns->map(c | $c.expression->generateBigQueryExpression() + if($c.alias->isNotEmpty(), ' AS ' + $c.alias->toOne(), ''))->joinStrings(', '));
 }
 
 // Generate the FROM clause
@@ -131,12 +150,46 @@ function <<access.private>> meta::pure::dsl::bigquery::generateOrderByClause(df:
       )->joinStrings(', '));
 }
 
-// Generate the LIMIT and OFFSET clauses
+// Generate the LIMIT and OFFSET clauses plus BigQuery-specific privacy clauses
 function <<access.private>> meta::pure::dsl::bigquery::generateLimitOffsetClause(df: DataFrame[1]): String[1]
 {
    let limitClause = if($df.limit->isEmpty(), '', '\nLIMIT ' + $df.limit->toOne()->toString());
    let offsetClause = if($df.offset->isEmpty(), '', '\nOFFSET ' + $df.offset->toOne()->toString());
-   $limitClause + $offsetClause;
+   let diffPrivacyClause = $df->generateDifferentialPrivacyClause();
+   let aggThresholdClause = $df->generateAggregationThresholdClause();
+   
+   $limitClause + $offsetClause + $diffPrivacyClause + $aggThresholdClause;
+}
+
+// Generate the WITH DIFFERENTIAL_PRIVACY clause
+function <<access.private>> meta::pure::dsl::bigquery::generateDifferentialPrivacyClause(df: DataFrame[1]): String[1]
+{
+   if($df.differentialPrivacy->isEmpty(), 
+      '', 
+      '\nWITH DIFFERENTIAL_PRIVACY OPTIONS(' + 
+         'epsilon=' + $df.differentialPrivacy->toOne().epsilon->toString() + 
+         if($df.differentialPrivacy->toOne().delta->isNotEmpty(), 
+            ', delta=' + $df.differentialPrivacy->toOne().delta->toOne()->toString(), 
+            '') +
+         if($df.differentialPrivacy->toOne().kappa->isNotEmpty(), 
+            ', kappa=' + $df.differentialPrivacy->toOne().kappa->toOne()->toString(), 
+            '') +
+         if($df.differentialPrivacy->toOne().sensitivityType->isNotEmpty(), 
+            ', sensitivity_type=' + $df.differentialPrivacy->toOne().sensitivityType->toOne()->toString() + 
+            ', sensitivity_value=' + $df.differentialPrivacy->toOne().sensitivityValue->toOne()->toString(), 
+            '') +
+      ')')
+}
+
+// Generate the WITH AGGREGATION_THRESHOLD clause
+function <<access.private>> meta::pure::dsl::bigquery::generateAggregationThresholdClause(df: DataFrame[1]): String[1]
+{
+   if($df.aggregationThreshold->isEmpty(), 
+      '', 
+      '\nWITH AGGREGATION_THRESHOLD ' + $df.aggregationThreshold->toOne().threshold->toString() +
+      if($df.aggregationThreshold->toOne().replaceWith->isNotEmpty(), 
+         ' REPLACE WITH ' + generateBigQueryLiteral($df.aggregationThreshold->toOne().replaceWith->toOne()), 
+         ''))
 }
 
 // Generate BigQuery expression for a column

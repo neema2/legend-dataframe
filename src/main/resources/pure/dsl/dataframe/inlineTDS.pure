@@ -1,0 +1,74 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+
+// Class to represent inline TDS data
+Class meta::pure::dsl::dataframe::metamodel::InlineTDSData
+{
+   columns: String[*];
+   rows: Any[*][*];
+}
+
+// Function to create an inline TDS DataFrame
+function meta::pure::dsl::dataframe::inlineTDS(columns: String[*], rows: Any[*][*]): DataFrame[1]
+{
+   let columnDefs = $columns->map(c | ^ColumnDefinition(name = $c, expression = ^ColumnReference(columnName = $c)));
+   
+   let source = ^TableReference(
+      tableName = 'inline_tds',
+      inlineTDSData = ^InlineTDSData(columns = $columns, rows = $rows)
+   );
+   
+   ^DataFrame(
+      source = $source,
+      columns = $columnDefs
+   );
+}
+
+// Type-safe version using column specs
+function meta::pure::dsl::dataframe::inlineTDS<T>(cols: ColSpecArray<T>[1], rows: Any[*][*]): DataFrame[1]
+{
+   inlineTDS($cols.names, $rows);
+}
+
+// Helper function to get inline TDS values for SQL generation
+function meta::pure::dsl::dataframe::getInlineTDSValues(df: DataFrame[1]): String[1]
+{
+   if($df.source->instanceOf(TableReference) && $df.source->cast(@TableReference).tableName == 'inline_tds',
+      | let tdsData = $df.source->cast(@TableReference).inlineTDSData;
+        if($tdsData->isEmpty(),
+           | 'ERROR: No inline TDS data found',
+           | $tdsData->toOne().rows->map(row | 
+               '(' + $row->map(cell | generateLiteralValue($cell))->joinStrings(', ') + ')'
+             )->joinStrings(', ')
+        );,
+      | 'ERROR: Not an inline TDS'
+   );
+}
+
+// Helper function to generate literal values for SQL
+function <<access.private>> meta::pure::dsl::dataframe::generateLiteralValue(value: Any[1]): String[1]
+{
+   $value->match([
+      s: String[1] | '\'' + $s->replace('\'', '\'\'') + '\'',
+      i: Integer[1] | $i->toString(),
+      f: Float[1] | $f->toString(),
+      b: Boolean[1] | if($b, 'TRUE', 'FALSE'),
+      d: Date[1] | 'DATE \'' + $d->toString() + '\'',
+      n: Nil[1] | 'NULL',
+      a: Any[1] | '\'' + $a->toString() + '\''
+   ]);
+}

@@ -1,0 +1,92 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+
+// PIVOT clause
+Class meta::pure::dsl::dataframe::metamodel::PivotClause
+{
+   pivotColumns: Expression[*];
+   aggregation: Expression[1];
+   pivotValues: Expression[*];
+}
+
+// UNPIVOT clause
+Class meta::pure::dsl::dataframe::metamodel::UnpivotClause
+{
+   valueColumn: String[1];
+   nameColumn: String[1];
+   unpivotColumns: Expression[*];
+}
+
+// MATCH_RECOGNIZE clause
+Class meta::pure::dsl::dataframe::metamodel::MatchRecognizeClause
+{
+   partitionBy: Expression[*];
+   orderBy: OrderByClause[*];
+   measures: Expression[*];
+   rowsPerMatch: String[0..1];
+   after: String[0..1];
+   pattern: String[1];
+   define: KeyValuePair<String, Expression>[*];
+}
+
+// LATERAL join
+Class meta::pure::dsl::dataframe::metamodel::LateralJoin extends JoinOperation
+{
+}
+
+// SAMPLE clause
+Class meta::pure::dsl::dataframe::metamodel::SampleClause
+{
+   percent: Float[0..1];
+   rows: Integer[0..1];
+   method: SampleMethod[0..1];
+}
+
+Enum meta::pure::dsl::dataframe::metamodel::SampleMethod
+{
+   BERNOULLI,
+   SYSTEM,
+   BLOCK
+}
+
+// QUALIFY clause
+Class meta::pure::dsl::dataframe::metamodel::QualifyClause
+{
+   condition: Expression[1];
+}
+
+// AT clause
+Class meta::pure::dsl::dataframe::metamodel::AtClause
+{
+   offset: String[1];
+}
+
+// CHANGES clause
+Class meta::pure::dsl::dataframe::metamodel::ChangesClause
+{
+   startTime: Expression[0..1];
+   endTime: Expression[0..1];
+}
+
+// CONNECT BY clause
+Class meta::pure::dsl::dataframe::metamodel::ConnectByClause
+{
+   condition: Expression[1];
+   prior: Boolean[1];
+   startWith: Expression[0..1];
+   nocycle: Boolean[1];
+}

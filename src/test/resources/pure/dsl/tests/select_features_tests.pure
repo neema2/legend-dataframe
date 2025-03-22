@@ -1,0 +1,228 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::snowflake::*;
+import meta::pure::dsl::duckdb::*;
+
+function <<test.Test>> meta::pure::dsl::tests::testPivotClause(): Boolean[1]
+{
+   let df = table('sales');
+   let pivoted = $df->pivot([col('product')], sum(col('amount')), [literal('Product A'), literal('Product B')]);
+   
+   let sql = $pivoted->generateSnowflakeSQL();
+   
+   assertEquals('SELECT *\nFROM sales PIVOT(SUM(amount) FOR product IN (\'Product A\', \'Product B\'))', $sql);
+   
+   // Test DuckDB error handling
+   let errorMessage = '';
+   try
+   {
+      $pivoted->generateDuckDBSQL();
+   }
+   catch(e: Exception)
+   {
+      $errorMessage = $e.message;
+   }
+   
+   assertEquals('PIVOT clause is not supported in DuckDB', $errorMessage);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testUnpivotClause(): Boolean[1]
+{
+   let df = table('sales_pivot');
+   let unpivoted = $df->unpivot('amount', 'product', [col('product_a'), col('product_b')]);
+   
+   let sql = $unpivoted->generateSnowflakeSQL();
+   
+   assertEquals('SELECT *\nFROM sales_pivot UNPIVOT(amount FOR product IN (product_a, product_b))', $sql);
+   
+   // Test DuckDB error handling
+   let errorMessage = '';
+   try
+   {
+      $unpivoted->generateDuckDBSQL();
+   }
+   catch(e: Exception)
+   {
+      $errorMessage = $e.message;
+   }
+   
+   assertEquals('UNPIVOT clause is not supported in DuckDB', $errorMessage);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testMatchRecognizeClause(): Boolean[1]
+{
+   let df = table('stock_prices');
+   let pattern = $df->matchRecognize(
+      [col('symbol')], 
+      [^OrderByClause(expression = col('trade_date'), direction = SortDirection.ASC)],
+      [col('price')->as('start_price'), col('price')->as('bottom_price'), col('price')->as('end_price')],
+      'STRT DOWN+ UP+',
+      [
+         pair('STRT', ^BinaryOperation(left = col('price'), operator = BinaryOperator.GREATER_THAN, right = literal(100))),
+         pair('DOWN', ^BinaryOperation(left = col('price'), operator = BinaryOperator.LESS_THAN, right = col('PREV(price)')))
+      ]
+   );
+   
+   let sql = $pattern->generateSnowflakeSQL();
+   
+   assert($sql->contains('MATCH_RECOGNIZE'));
+   assert($sql->contains('PARTITION BY symbol'));
+   assert($sql->contains('ORDER BY trade_date ASC'));
+   assert($sql->contains('PATTERN (STRT DOWN+ UP+)'));
+   
+   // Test DuckDB error handling
+   let errorMessage = '';
+   try
+   {
+      $pattern->generateDuckDBSQL();
+   }
+   catch(e: Exception)
+   {
+      $errorMessage = $e.message;
+   }
+   
+   assertEquals('MATCH_RECOGNIZE clause is not supported in DuckDB', $errorMessage);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testSampleClause(): Boolean[1]
+{
+   let df = table('large_table');
+   let sampled = $df->sample(10.0);
+   
+   let snowflakeSQL = $sampled->generateSnowflakeSQL();
+   let duckdbSQL = $sampled->generateDuckDBSQL();
+   
+   assertEquals('SELECT *\nFROM large_table\nSAMPLE (10.0)', $snowflakeSQL);
+   assertEquals('SELECT *\nFROM large_table\nTABLESAMPLE 10.0%', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testQualifyClause(): Boolean[1]
+{
+   let df = table('employees');
+   let condition = ^BinaryOperation(
+      left = ^FunctionExpression(
+         functionName = 'ROW_NUMBER',
+         parameters = []
+      ),
+      operator = BinaryOperator.LESS_THAN,
+      right = ^LiteralExpression(value = 3)
+   );
+   let qualified = $df->qualify($condition);
+   
+   let snowflakeSQL = $qualified->generateSnowflakeSQL();
+   let duckdbSQL = $qualified->generateDuckDBSQL();
+   
+   assertEquals('SELECT *\nFROM employees\nQUALIFY ROW_NUMBER() < 3', $snowflakeSQL);
+   assertEquals('SELECT *\nFROM employees\nQUALIFY ROW_NUMBER() < 3', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testDistinctOnClause(): Boolean[1]
+{
+   let df = table('logs');
+   let distinctDF = $df->distinctOn([col('user_id')]);
+   
+   let duckdbSQL = $distinctDF->generateDuckDBSQL();
+   
+   assertEquals('SELECT DISTINCT ON (user_id) *\nFROM logs', $duckdbSQL);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testJoinUsingClause(): Boolean[1]
+{
+   let employees = table('employees');
+   let departments = table('departments');
+   let joined = $employees->joinUsing($departments, JoinType.INNER, ['department_id']);
+   
+   let snowflakeSQL = $joined->generateSnowflakeSQL();
+   let duckdbSQL = $joined->generateDuckDBSQL();
+   
+   assert($snowflakeSQL->contains('USING (department_id)'));
+   assert($duckdbSQL->contains('USING (department_id)'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testInlineTDS(): Boolean[1]
+{
+   let columns = ['id', 'name', 'age'];
+   let rows = [
+      [1, 'Alice', 30],
+      [2, 'Bob', 25],
+      [3, 'Charlie', 35]
+   ];
+   
+   let df = inlineTDS($columns, $rows);
+   
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   
+   assert($snowflakeSQL->contains('VALUES'));
+   assert($snowflakeSQL->contains('\'Alice\''));
+   
+   assert($duckdbSQL->contains('VALUES'));
+   assert($duckdbSQL->contains('\'Bob\''));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testCombinedFeatures(): Boolean[1]
+{
+   let df = table('sales')
+      ->filter({s | $s.amount > 1000})
+      ->sample(20.0)
+      ->groupBy([~region])
+      ->extend([
+         sum(~amount)->as('total_amount'),
+         count()->as('sale_count')
+      ])
+      ->qualify({row | row_number() over [partition ~region order ~date desc] < 5})
+      ->orderBy([desc(~total_amount)]);
+   
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   
+   assert($snowflakeSQL->contains('WHERE'));
+   assert($snowflakeSQL->contains('SAMPLE'));
+   assert($snowflakeSQL->contains('GROUP BY'));
+   assert($snowflakeSQL->contains('QUALIFY'));
+   assert($snowflakeSQL->contains('ORDER BY'));
+   
+   assert($duckdbSQL->contains('WHERE'));
+   assert($duckdbSQL->contains('TABLESAMPLE'));
+   assert($duckdbSQL->contains('GROUP BY'));
+   assert($duckdbSQL->contains('QUALIFY'));
+   assert($duckdbSQL->contains('ORDER BY'));
+   
+   true;
+}
+
+function meta::pure::dsl::tests::assertEquals(expected: String[1], actual: String[1]): Boolean[1]
+{
+   assert($expected == $actual, | 'Expected: ' + $expected + '\nActual: ' + $actual);
+   true;
+}

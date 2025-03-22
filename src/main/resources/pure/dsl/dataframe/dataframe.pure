@@ -35,6 +35,19 @@ Class meta::pure::dsl::dataframe::metamodel::DataFrame
    offset : Integer[0..1];
    distinct : Boolean[0..1];
    ctes : CommonTableExpression[*];
+   
+   // New properties for Snowflake features
+   pivot : PivotClause[0..1];
+   unpivot : UnpivotClause[0..1];
+   matchRecognize : MatchRecognizeClause[0..1];
+   sample : SampleClause[0..1];
+   qualify : QualifyClause[0..1];
+   at : AtClause[0..1];
+   changes : ChangesClause[0..1];
+   connectBy : ConnectByClause[0..1];
+   
+   // New property for DuckDB DISTINCT ON
+   distinctOn : Expression[*];
 }
 
 // Column representation
@@ -90,6 +103,7 @@ Class meta::pure::dsl::dataframe::metamodel::JoinOperation extends DataSource
    right : DataSource[1];
    joinType : JoinType[1];
    condition : FilterCondition[1];
+   usingColumns : String[*];
 }
 
 // Join types

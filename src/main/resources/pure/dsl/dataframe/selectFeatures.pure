@@ -1,0 +1,221 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+
+// PIVOT clause helper functions
+function meta::pure::dsl::dataframe::pivot<T>(df: DataFrame[1], pivotColumns: Expression[*], aggregation: Expression[1], pivotValues: Expression[*]): DataFrame[1]
+{
+   ^$df(pivot = ^PivotClause(pivotColumns = $pivotColumns, aggregation = $aggregation, pivotValues = $pivotValues));
+}
+
+// Type-safe version using column specs
+function meta::pure::dsl::dataframe::pivot<T>(df: DataFrame[1], pivotCol: ColSpec<Any>[1], aggFunction: Expression[1], values: Any[*]): DataFrame[1]
+{
+   let pivotCols = [col($pivotCol.name)];
+   let pivotVals = $values->map(v | literal($v));
+   
+   pivot($df, $pivotCols, $aggFunction, $pivotVals);
+}
+
+// UNPIVOT clause helper functions
+function meta::pure::dsl::dataframe::unpivot<T>(df: DataFrame[1], valueColumn: String[1], nameColumn: String[1], unpivotColumns: Expression[*]): DataFrame[1]
+{
+   ^$df(unpivot = ^UnpivotClause(valueColumn = $valueColumn, nameColumn = $nameColumn, unpivotColumns = $unpivotColumns));
+}
+
+// Type-safe version using column specs
+function meta::pure::dsl::dataframe::unpivot<T>(df: DataFrame[1], valueColumn: String[1], nameColumn: String[1], cols: ColSpecArray<Any>[1]): DataFrame[1]
+{
+   let unpivotCols = $cols.names->map(n | col($n));
+   unpivot($df, $valueColumn, $nameColumn, $unpivotCols);
+}
+
+// MATCH_RECOGNIZE clause helper functions
+function meta::pure::dsl::dataframe::matchRecognize<T>(
+   df: DataFrame[1], 
+   partitionBy: Expression[*], 
+   orderBy: OrderByClause[*], 
+   measures: Expression[*], 
+   pattern: String[1], 
+   define: KeyValuePair<String, Expression>[*]
+): DataFrame[1]
+{
+   ^$df(matchRecognize = ^MatchRecognizeClause(
+      partitionBy = $partitionBy,
+      orderBy = $orderBy,
+      measures = $measures,
+      pattern = $pattern,
+      define = $define
+   ));
+}
+
+// Type-safe version using column specs
+function meta::pure::dsl::dataframe::matchRecognize<T>(
+   df: DataFrame[1], 
+   partitionCols: ColSpecArray<Any>[1],
+   orderCols: ColSpecArray<Any>[1],
+   measures: Expression[*], 
+   pattern: String[1], 
+   define: KeyValuePair<String, Expression>[*]
+): DataFrame[1]
+{
+   let partitionBy = $partitionCols.names->map(n | col($n));
+   let orderBy = $orderCols.names->map(n | ^OrderByClause(expression = col($n), direction = SortDirection.ASC));
+   
+   matchRecognize($df, $partitionBy, $orderBy, $measures, $pattern, $define);
+}
+
+// LATERAL join helper functions
+function meta::pure::dsl::dataframe::lateralJoin<T>(
+   left: DataFrame[1], 
+   right: DataFrame[1], 
+   condition: FilterCondition[1]
+): DataFrame[1]
+{
+   ^DataFrame(
+      source = ^LateralJoin(
+         left = $left.source, 
+         right = $right.source, 
+         joinType = JoinType.INNER,
+         condition = $condition
+      ),
+      columns = $left.columns->concatenate($right.columns)
+   );
+}
+
+// Type-safe version using lambda function
+function meta::pure::dsl::dataframe::lateralJoin<T, V>(
+   left: DataFrame[1], 
+   right: DataFrame[1], 
+   condition: Function<{T[1], V[1]->Boolean[1]}>[1]
+): DataFrame[1]
+{
+   // In a real implementation, we would translate the lambda to a FilterCondition
+   // For now, we'll use a placeholder
+   let placeholder = ^BinaryOperation(
+      left = ^ColumnReference(columnName = 'id'),
+      operator = BinaryOperator.EQUALS,
+      right = ^ColumnReference(columnName = 'id')
+   );
+   
+   lateralJoin($left, $right, $placeholder);
+}
+
+// SAMPLE clause helper functions
+function meta::pure::dsl::dataframe::sample<T>(df: DataFrame[1], percent: Float[1]): DataFrame[1]
+{
+   ^$df(sample = ^SampleClause(percent = $percent));
+}
+
+function meta::pure::dsl::dataframe::sampleRows<T>(df: DataFrame[1], rows: Integer[1]): DataFrame[1]
+{
+   ^$df(sample = ^SampleClause(rows = $rows));
+}
+
+function meta::pure::dsl::dataframe::sampleWithMethod<T>(df: DataFrame[1], percent: Float[1], method: SampleMethod[1]): DataFrame[1]
+{
+   ^$df(sample = ^SampleClause(percent = $percent, method = $method));
+}
+
+// QUALIFY clause helper functions
+function meta::pure::dsl::dataframe::qualify<T>(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
+{
+   ^$df(qualify = ^QualifyClause(condition = $condition));
+}
+
+// Type-safe version using lambda function
+function meta::pure::dsl::dataframe::qualify<T>(df: DataFrame[1], condition: Function<{T[1]->Boolean[1]}>[1]): DataFrame[1]
+{
+   // In a real implementation, we would translate the lambda to a FilterCondition
+   // For now, we'll use a placeholder
+   let placeholder = ^BinaryOperation(
+      left = ^ColumnReference(columnName = 'id'),
+      operator = BinaryOperator.EQUALS,
+      right = ^LiteralExpression(value = 1)
+   );
+   
+   qualify($df, $placeholder);
+}
+
+// AT clause helper functions
+function meta::pure::dsl::dataframe::at<T>(df: DataFrame[1], offset: String[1]): DataFrame[1]
+{
+   ^$df(at = ^AtClause(offset = $offset));
+}
+
+// CHANGES clause helper functions
+function meta::pure::dsl::dataframe::changes<T>(df: DataFrame[1], startTime: Expression[0..1], endTime: Expression[0..1]): DataFrame[1]
+{
+   ^$df(changes = ^ChangesClause(startTime = $startTime, endTime = $endTime));
+}
+
+// CONNECT BY clause helper functions
+function meta::pure::dsl::dataframe::connectBy<T>(df: DataFrame[1], condition: FilterCondition[1], prior: Boolean[1], startWith: Expression[0..1], nocycle: Boolean[1]): DataFrame[1]
+{
+   ^$df(connectBy = ^ConnectByClause(condition = $condition, prior = $prior, startWith = $startWith, nocycle = $nocycle));
+}
+
+// DuckDB DISTINCT ON helper functions
+function meta::pure::dsl::dataframe::distinctOn<T>(df: DataFrame[1], expressions: Expression[*]): DataFrame[1]
+{
+   ^$df(distinct = true, distinctOn = $expressions);
+}
+
+// Type-safe version using column specs
+function meta::pure::dsl::dataframe::distinctOn<T>(df: DataFrame[1], cols: ColSpecArray<Any>[1]): DataFrame[1]
+{
+   let expressions = $cols.names->map(n | col($n));
+   distinctOn($df, $expressions);
+}
+
+// Helper function for USING clause in joins
+function meta::pure::dsl::dataframe::joinUsing<T>(
+   left: DataFrame[1], 
+   right: DataFrame[1], 
+   joinType: JoinType[1],
+   usingColumns: String[*]
+): DataFrame[1]
+{
+   // Create a placeholder condition since the actual condition will be generated
+   // based on the USING columns during SQL generation
+   let placeholder = ^BinaryOperation(
+      left = ^ColumnReference(columnName = $usingColumns->at(0)),
+      operator = BinaryOperator.EQUALS,
+      right = ^ColumnReference(columnName = $usingColumns->at(0))
+   );
+   
+   ^DataFrame(
+      source = ^JoinOperation(
+         left = $left.source, 
+         right = $right.source, 
+         joinType = $joinType,
+         condition = $placeholder,
+         usingColumns = $usingColumns
+      ),
+      columns = $left.columns->concatenate($right.columns)
+   );
+}
+
+// Type-safe version using column specs
+function meta::pure::dsl::dataframe::joinUsing<T>(
+   left: DataFrame[1], 
+   right: DataFrame[1], 
+   joinType: JoinType[1],
+   cols: ColSpecArray<Any>[1]
+): DataFrame[1]
+{
+   joinUsing($left, $right, $joinType, $cols.names);
+}

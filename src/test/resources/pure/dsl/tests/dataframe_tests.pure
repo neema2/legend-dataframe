@@ -229,7 +229,7 @@ function <<test.Test>> meta::pure::dsl::tests::testWindowFunctionsBasic(): Boole
    let df = select([
       as(col('id'), 'id'),
       as(col('name'), 'name'),
-      as(rowNumber(partitionBy([col('category')])->orderBy([asc(col('id'))])), 'row_num')
+      as(over(rowNumber(), partitionBy([col('category')])->orderBy([asc(col('id'))])), 'row_num')
    ])->from(table('employees'));
    
    // Generate SQL for Snowflake
@@ -249,10 +249,10 @@ function <<test.Test>> meta::pure::dsl::tests::testWindowFunctionsWithFrames(): 
    let df = select([
       as(col('id'), 'id'),
       as(col('sales'), 'sales'),
-      as(sumOver(col('sales'), partitionBy([col('region')])
+      as(over(sum(col('sales')), partitionBy([col('region')])
                                ->orderBy([asc(col('date'))])
                                ->rowsBetween(unboundedPreceding(), currentRow())), 'running_total'),
-      as(avgOver(col('sales'), partitionBy([col('region')])
+      as(over(avg(col('sales')), partitionBy([col('region')])
                                ->orderBy([asc(col('date'))])
                                ->rowsBetween(preceding(2), following(2))), 'moving_avg')
    ])->from(table('sales'));
@@ -275,7 +275,7 @@ function <<test.Test>> meta::pure::dsl::tests::testWindowFunctionsWithRange(): B
       as(col('id'), 'id'),
       as(col('date'), 'date'),
       as(col('sales'), 'sales'),
-      as(sumOver(col('sales'), partitionBy([col('region')])
+      as(over(sum(col('sales')), partitionBy([col('region')])
                                ->orderBy([asc(col('date'))])
                                ->rangeBetween(unboundedPreceding(), currentRow())), 'running_total')
    ])->from(table('sales'));
@@ -298,10 +298,10 @@ function <<test.Test>> meta::pure::dsl::tests::testLeadLagWindowFunctions(): Boo
       as(col('id'), 'id'),
       as(col('date'), 'date'),
       as(col('sales'), 'sales'),
-      as(lead(col('sales'), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'next_day_sales'),
-      as(lead(col('sales'), 2, literal(0), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'sales_in_two_days'),
-      as(lag(col('sales'), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'prev_day_sales'),
-      as(lag(col('sales'), 3, literal(0), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'sales_three_days_ago')
+      as(over(lead(col('sales')), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'next_day_sales'),
+      as(over(lead(col('sales'), 2, literal(0)), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'sales_in_two_days'),
+      as(over(lag(col('sales')), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'prev_day_sales'),
+      as(over(lag(col('sales'), 3, literal(0)), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'sales_three_days_ago')
    ])->from(table('sales'));
    
    // Generate SQL for Snowflake
@@ -322,9 +322,9 @@ function <<test.Test>> meta::pure::dsl::tests::testRankingWindowFunctions(): Boo
       as(col('id'), 'id'),
       as(col('name'), 'name'),
       as(col('score'), 'score'),
-      as(rank(partitionBy([col('department')])->orderBy([desc(col('score'))])), 'rank'),
-      as(denseRank(partitionBy([col('department')])->orderBy([desc(col('score'))])), 'dense_rank'),
-      as(rowNumber(partitionBy([col('department')])->orderBy([desc(col('score'))])), 'row_number')
+      as(over(rank(), partitionBy([col('department')])->orderBy([desc(col('score'))])), 'rank'),
+      as(over(denseRank(), partitionBy([col('department')])->orderBy([desc(col('score'))])), 'dense_rank'),
+      as(over(rowNumber(), partitionBy([col('department')])->orderBy([desc(col('score'))])), 'row_number')
    ])->from(table('employees'));
    
    // Generate SQL for Snowflake
@@ -345,10 +345,10 @@ function <<test.Test>> meta::pure::dsl::tests::testFirstLastValueWindowFunctions
       as(col('id'), 'id'),
       as(col('date'), 'date'),
       as(col('sales'), 'sales'),
-      as(firstValue(col('sales'), partitionBy([col('region')])
+      as(over(firstValue(col('sales')), partitionBy([col('region')])
                                   ->orderBy([asc(col('date'))])
                                   ->rowsBetween(unboundedPreceding(), unboundedFollowing())), 'first_sale'),
-      as(lastValue(col('sales'), partitionBy([col('region')])
+      as(over(lastValue(col('sales')), partitionBy([col('region')])
                                  ->orderBy([asc(col('date'))])
                                  ->rowsBetween(unboundedPreceding(), unboundedFollowing())), 'last_sale')
    ])->from(table('sales'));
@@ -371,11 +371,11 @@ function <<test.Test>> meta::pure::dsl::tests::testAggregateWindowFunctions(): B
       as(col('id'), 'id'),
       as(col('department'), 'department'),
       as(col('salary'), 'salary'),
-      as(sumOver(col('salary'), partitionBy([col('department')])), 'dept_total'),
-      as(avgOver(col('salary'), partitionBy([col('department')])), 'dept_avg'),
-      as(minOver(col('salary'), partitionBy([col('department')])), 'dept_min'),
-      as(maxOver(col('salary'), partitionBy([col('department')])), 'dept_max'),
-      as(countOver(col('id'), partitionBy([col('department')])), 'dept_count')
+      as(over(sum(col('salary')), partitionBy([col('department')])), 'dept_total'),
+      as(over(avg(col('salary')), partitionBy([col('department')])), 'dept_avg'),
+      as(over(min(col('salary')), partitionBy([col('department')])), 'dept_min'),
+      as(over(max(col('salary')), partitionBy([col('department')])), 'dept_max'),
+      as(over(count(col('id')), partitionBy([col('department')])), 'dept_count')
    ])->from(table('employees'));
    
    // Generate SQL for Snowflake

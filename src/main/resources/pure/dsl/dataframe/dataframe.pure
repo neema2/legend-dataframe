@@ -487,7 +487,59 @@ function meta::pure::dsl::dataframe::desc(expr: Expression[1]): OrderByClause[1]
 // Window function helper functions
 function meta::pure::dsl::dataframe::over(expr: Expression[1], window: Window[1]): WindowFunction[1]
 {
-   ^WindowFunction(functionName = 'window', parameters = [$expr], window = $window);
+   let functionName = $expr->getFunctionName();
+   
+   if($functionName == 'row_number')
+   {
+      ^RowNumberFunction(functionName = $functionName, parameters = [], window = $window);
+   }
+   else if($functionName == 'rank')
+   {
+      ^RankFunction(functionName = $functionName, parameters = [], window = $window);
+   }
+   else if($functionName == 'dense_rank')
+   {
+      ^DenseRankFunction(functionName = $functionName, parameters = [], window = $window);
+   }
+   else if($functionName == 'lead' || $functionName == 'lag')
+   {
+      let params = $expr->getFunctionParameters();
+      let valueExpr = $params->at(0);
+      let offset = if($params->size() >= 2, |$params->at(1), |^LiteralExpression(value = 1));
+      let defaultValue = if($params->size() >= 3, |$params->at(2), |^LiteralExpression(value = null));
+      
+      ^LeadLagFunction(functionName = $functionName, parameters = [$valueExpr], window = $window, offset = $offset, defaultValue = $defaultValue);
+   }
+   else if($functionName == 'first_value' || $functionName == 'last_value')
+   {
+      let params = $expr->getFunctionParameters();
+      let valueExpr = $params->at(0);
+      
+      ^FirstLastValueFunction(functionName = $functionName, parameters = [$valueExpr], window = $window);
+   }
+   else
+   {
+      // Default to aggregate window function for sum, avg, min, max, count, etc.
+      let params = if($expr->instanceOf(FunctionExpression), 
+                     |$expr->cast(@FunctionExpression).parameters, 
+                     |[$expr]);
+      
+      ^AggregateWindowFunction(functionName = $functionName, parameters = $params, window = $window);
+   }
+}
+
+function meta::pure::dsl::dataframe::getFunctionName(expr: Expression[1]): String[1]
+{
+   if($expr->instanceOf(FunctionExpression),
+      |$expr->cast(@FunctionExpression).functionName,
+      |'');
+}
+
+function meta::pure::dsl::dataframe::getFunctionParameters(expr: Expression[1]): Expression[*]
+{
+   if($expr->instanceOf(FunctionExpression),
+      |$expr->cast(@FunctionExpression).parameters,
+      |[]);
 }
 
 function meta::pure::dsl::dataframe::partitionBy(columns: Expression[*]): Window[1]
@@ -544,84 +596,84 @@ function meta::pure::dsl::dataframe::following(offset: Integer[1]): WindowFrameB
    ^WindowFrameBound(type = WindowFrameBoundType.FOLLOWING, offset = $offset);
 }
 
-// Specific window functions
-function meta::pure::dsl::dataframe::rowNumber(window: Window[1]): RowNumberFunction[1]
+// Window function factory functions
+function meta::pure::dsl::dataframe::rowNumber(): FunctionExpression[1]
 {
-   ^RowNumberFunction(functionName = 'row_number', parameters = [], window = $window);
+   ^FunctionExpression(functionName = 'row_number', parameters = []);
 }
 
-function meta::pure::dsl::dataframe::rank(window: Window[1]): RankFunction[1]
+function meta::pure::dsl::dataframe::rank(): FunctionExpression[1]
 {
-   ^RankFunction(functionName = 'rank', parameters = [], window = $window);
+   ^FunctionExpression(functionName = 'rank', parameters = []);
 }
 
-function meta::pure::dsl::dataframe::denseRank(window: Window[1]): DenseRankFunction[1]
+function meta::pure::dsl::dataframe::denseRank(): FunctionExpression[1]
 {
-   ^DenseRankFunction(functionName = 'dense_rank', parameters = [], window = $window);
+   ^FunctionExpression(functionName = 'dense_rank', parameters = []);
 }
 
-function meta::pure::dsl::dataframe::lead(expr: Expression[1], window: Window[1]): LeadLagFunction[1]
+function meta::pure::dsl::dataframe::lead(expr: Expression[1]): FunctionExpression[1]
 {
-   ^LeadLagFunction(functionName = 'lead', parameters = [$expr], window = $window);
+   ^FunctionExpression(functionName = 'lead', parameters = [$expr]);
 }
 
-function meta::pure::dsl::dataframe::lead(expr: Expression[1], offset: Integer[1], window: Window[1]): LeadLagFunction[1]
+function meta::pure::dsl::dataframe::lead(expr: Expression[1], offset: Integer[1]): FunctionExpression[1]
 {
-   ^LeadLagFunction(functionName = 'lead', parameters = [$expr], window = $window, offset = literal($offset));
+   ^FunctionExpression(functionName = 'lead', parameters = [$expr, literal($offset)]);
 }
 
-function meta::pure::dsl::dataframe::lead(expr: Expression[1], offset: Integer[1], defaultValue: Expression[1], window: Window[1]): LeadLagFunction[1]
+function meta::pure::dsl::dataframe::lead(expr: Expression[1], offset: Integer[1], defaultValue: Expression[1]): FunctionExpression[1]
 {
-   ^LeadLagFunction(functionName = 'lead', parameters = [$expr], window = $window, offset = literal($offset), defaultValue = $defaultValue);
+   ^FunctionExpression(functionName = 'lead', parameters = [$expr, literal($offset), $defaultValue]);
 }
 
-function meta::pure::dsl::dataframe::lag(expr: Expression[1], window: Window[1]): LeadLagFunction[1]
+function meta::pure::dsl::dataframe::lag(expr: Expression[1]): FunctionExpression[1]
 {
-   ^LeadLagFunction(functionName = 'lag', parameters = [$expr], window = $window);
+   ^FunctionExpression(functionName = 'lag', parameters = [$expr]);
 }
 
-function meta::pure::dsl::dataframe::lag(expr: Expression[1], offset: Integer[1], window: Window[1]): LeadLagFunction[1]
+function meta::pure::dsl::dataframe::lag(expr: Expression[1], offset: Integer[1]): FunctionExpression[1]
 {
-   ^LeadLagFunction(functionName = 'lag', parameters = [$expr], window = $window, offset = literal($offset));
+   ^FunctionExpression(functionName = 'lag', parameters = [$expr, literal($offset)]);
 }
 
-function meta::pure::dsl::dataframe::lag(expr: Expression[1], offset: Integer[1], defaultValue: Expression[1], window: Window[1]): LeadLagFunction[1]
+function meta::pure::dsl::dataframe::lag(expr: Expression[1], offset: Integer[1], defaultValue: Expression[1]): FunctionExpression[1]
 {
-   ^LeadLagFunction(functionName = 'lag', parameters = [$expr], window = $window, offset = literal($offset), defaultValue = $defaultValue);
+   ^FunctionExpression(functionName = 'lag', parameters = [$expr, literal($offset), $defaultValue]);
 }
 
-function meta::pure::dsl::dataframe::firstValue(expr: Expression[1], window: Window[1]): FirstLastValueFunction[1]
+function meta::pure::dsl::dataframe::firstValue(expr: Expression[1]): FunctionExpression[1]
 {
-   ^FirstLastValueFunction(functionName = 'first_value', parameters = [$expr], window = $window);
+   ^FunctionExpression(functionName = 'first_value', parameters = [$expr]);
 }
 
-function meta::pure::dsl::dataframe::lastValue(expr: Expression[1], window: Window[1]): FirstLastValueFunction[1]
+function meta::pure::dsl::dataframe::lastValue(expr: Expression[1]): FunctionExpression[1]
 {
-   ^FirstLastValueFunction(functionName = 'last_value', parameters = [$expr], window = $window);
+   ^FunctionExpression(functionName = 'last_value', parameters = [$expr]);
 }
 
-// Aggregate window functions
-function meta::pure::dsl::dataframe::sumOver(expr: Expression[1], window: Window[1]): AggregateWindowFunction[1]
+// Aggregate function factory functions
+function meta::pure::dsl::dataframe::sum(expr: Expression[1]): FunctionExpression[1]
 {
-   ^AggregateWindowFunction(functionName = 'sum', parameters = [$expr], window = $window);
+   ^FunctionExpression(functionName = 'sum', parameters = [$expr]);
 }
 
-function meta::pure::dsl::dataframe::avgOver(expr: Expression[1], window: Window[1]): AggregateWindowFunction[1]
+function meta::pure::dsl::dataframe::avg(expr: Expression[1]): FunctionExpression[1]
 {
-   ^AggregateWindowFunction(functionName = 'avg', parameters = [$expr], window = $window);
+   ^FunctionExpression(functionName = 'avg', parameters = [$expr]);
 }
 
-function meta::pure::dsl::dataframe::minOver(expr: Expression[1], window: Window[1]): AggregateWindowFunction[1]
+function meta::pure::dsl::dataframe::min(expr: Expression[1]): FunctionExpression[1]
 {
-   ^AggregateWindowFunction(functionName = 'min', parameters = [$expr], window = $window);
+   ^FunctionExpression(functionName = 'min', parameters = [$expr]);
 }
 
-function meta::pure::dsl::dataframe::maxOver(expr: Expression[1], window: Window[1]): AggregateWindowFunction[1]
+function meta::pure::dsl::dataframe::max(expr: Expression[1]): FunctionExpression[1]
 {
-   ^AggregateWindowFunction(functionName = 'max', parameters = [$expr], window = $window);
+   ^FunctionExpression(functionName = 'max', parameters = [$expr]);
 }
 
-function meta::pure::dsl::dataframe::countOver(expr: Expression[1], window: Window[1]): AggregateWindowFunction[1]
+function meta::pure::dsl::dataframe::count(expr: Expression[1]): FunctionExpression[1]
 {
-   ^AggregateWindowFunction(functionName = 'count', parameters = [$expr], window = $window);
+   ^FunctionExpression(functionName = 'count', parameters = [$expr]);
 }

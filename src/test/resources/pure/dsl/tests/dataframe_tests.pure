@@ -441,3 +441,314 @@ function <<test.Test>> meta::pure::dsl::tests::testTableSchemaAndTypeSafeColumns
    
    true;
 }
+
+// Test WITH clause
+function <<test.Test>> meta::pure::dsl::tests::testWithClause(): Boolean[1]
+{
+   // Define a table schema
+   let employeeSchema = ^TableSchema<Any>(
+      name = 'employees',
+      columns = newMap([
+         pair('name', String), 
+         pair('department', String),
+         pair('salary', Decimal)
+      ])
+   );
+   
+   // Create a table with schema
+   let employeesTable = tableWithSchema('employees', $employeeSchema);
+   
+   // Define CTE and main query
+   let employeesCte = cte('emp_cte', 
+      select([
+         as(~($employeeSchema, 'name'), 'name'),
+         as(~($employeeSchema, 'department'), 'department'),
+         as(~($employeeSchema, 'salary'), 'salary')
+      ])
+      ->from($employeesTable)
+      ->where(eq(~($employeeSchema, 'salary'), literal(50000)))
+   );
+   
+   let mainQuery = select([
+      as(col('e', 'name'), 'name'),
+      as(col('e', 'department'), 'department')
+   ])
+   ->from(tableAs('emp_cte', 'e'))
+   ->with($employeesCte);
+   
+   // Expected SQL for Snowflake
+   let expectedSnowflake = 'WITH emp_cte AS (SELECT name AS name, department AS department, salary AS salary\nFROM employees\nWHERE (salary = 50000))\nSELECT e.name AS name, e.department AS department\nFROM emp_cte AS e';
+   
+   // Expected SQL for DuckDB
+   let expectedDuckDB = 'WITH emp_cte AS (SELECT name AS name, department AS department, salary AS salary\nFROM employees\nWHERE (salary = 50000))\nSELECT e.name AS name, e.department AS department\nFROM emp_cte AS e';
+   
+   assertEquals($expectedSnowflake, $mainQuery->generateSnowflakeSQL()) &&
+   assertEquals($expectedDuckDB, $mainQuery->generateDuckDBSQL());
+   
+   true;
+}
+
+// Test recursive WITH clause
+function <<test.Test>> meta::pure::dsl::tests::testRecursiveWithClause(): Boolean[1]
+{
+   // Define a table schema for employees with hierarchical structure
+   let employeeSchema = ^TableSchema<Any>(
+      name = 'employees',
+      columns = newMap([
+         pair('id', Integer),
+         pair('name', String),
+         pair('parent_id', Integer)
+      ])
+   );
+   
+   // Create a table with schema
+   let employeesTable = tableWithSchema('employees', $employeeSchema);
+   
+   // Define recursive CTE and main query
+   let hierarchyCte = recursiveCte('hierarchy', ['id', 'name', 'parent_id', 'level'],
+      union(
+         select([
+            as(~($employeeSchema, 'id'), 'id'),
+            as(~($employeeSchema, 'name'), 'name'),
+            as(~($employeeSchema, 'parent_id'), 'parent_id'),
+            as(literal(1), 'level')
+         ])
+         ->from($employeesTable)
+         ->where(isNull(~($employeeSchema, 'parent_id'))),
+         
+         select([
+            as(col('e', 'id'), 'id'),
+            as(col('e', 'name'), 'name'),
+            as(col('e', 'parent_id'), 'parent_id'),
+            as(add(col('h', 'level'), literal(1)), 'level')
+         ])
+         ->from(tableAs('employees', 'e'))
+         ->join(tableAs('hierarchy', 'h'), eq(col('e', 'parent_id'), col('h', 'id')))
+      )
+   );
+   
+   let mainQuery = select([
+      as(col('h', 'id'), 'id'),
+      as(col('h', 'name'), 'name'),
+      as(col('h', 'level'), 'level')
+   ])
+   ->from(tableAs('hierarchy', 'h'))
+   ->orderBy([asc(col('h', 'level'))])
+   ->with($hierarchyCte);
+   
+   // Expected SQL for Snowflake
+   let expectedSnowflake = 'WITH RECURSIVE hierarchy(id, name, parent_id, level) AS (SELECT id AS id, name AS name, parent_id AS parent_id, 1 AS level\nFROM employees\nWHERE (parent_id IS NULL)\nUNION ALL\nSELECT e.id AS id, e.name AS name, e.parent_id AS parent_id, (h.level + 1) AS level\nFROM employees AS e INNER JOIN hierarchy AS h ON (e.parent_id = h.id))\nSELECT h.id AS id, h.name AS name, h.level AS level\nFROM hierarchy AS h\nORDER BY h.level ASC';
+   
+   // Expected SQL for DuckDB
+   let expectedDuckDB = 'WITH RECURSIVE hierarchy(id, name, parent_id, level) AS (SELECT id AS id, name AS name, parent_id AS parent_id, 1 AS level\nFROM employees\nWHERE (parent_id IS NULL)\nUNION ALL\nSELECT e.id AS id, e.name AS name, e.parent_id AS parent_id, (h.level + 1) AS level\nFROM employees AS e INNER JOIN hierarchy AS h ON (e.parent_id = h.id))\nSELECT h.id AS id, h.name AS name, h.level AS level\nFROM hierarchy AS h\nORDER BY h.level ASC';
+   
+   assertEquals($expectedSnowflake, $mainQuery->generateSnowflakeSQL()) &&
+   assertEquals($expectedDuckDB, $mainQuery->generateDuckDBSQL());
+   
+   true;
+}
+
+// Test PIVOT
+function <<test.Test>> meta::pure::dsl::tests::testPivot(): Boolean[1]
+{
+   // Define a table schema for sales data
+   let salesSchema = ^TableSchema<Any>(
+      name = 'sales',
+      columns = newMap([
+         pair('region', String),
+         pair('month', String),
+         pair('amount', Decimal)
+      ])
+   );
+   
+   // Create a table with schema
+   let salesTable = tableWithSchema('sales', $salesSchema);
+   
+   // Create a query with PIVOT
+   let query = select([
+      as(col('region'), 'region'),
+      as(col('Jan'), 'Jan'),
+      as(col('Feb'), 'Feb'),
+      as(col('Mar'), 'Mar')
+   ])->from(
+      pivot(
+         $salesTable,
+         ~($salesSchema, 'month'),
+         sum(~($salesSchema, 'amount')),
+         [literal('Jan'), literal('Feb'), literal('Mar')]
+      )
+   );
+   
+   // Expected SQL for Snowflake
+   let expectedSnowflake = 'SELECT region AS region, Jan AS Jan, Feb AS Feb, Mar AS Mar\nFROM sales PIVOT(SUM(amount) FOR month IN (\'Jan\', \'Feb\', \'Mar\'))';
+   
+   // Expected SQL for DuckDB
+   let expectedDuckDB = 'SELECT region AS region, Jan AS Jan, Feb AS Feb, Mar AS Mar\nFROM sales PIVOT(SUM(amount) FOR month IN (\'Jan\', \'Feb\', \'Mar\'))';
+   
+   assertEquals($expectedSnowflake, $query->generateSnowflakeSQL()) &&
+   assertEquals($expectedDuckDB, $query->generateDuckDBSQL());
+   
+   true;
+}
+
+// Test UNPIVOT
+function <<test.Test>> meta::pure::dsl::tests::testUnpivot(): Boolean[1]
+{
+   // Define a table schema for quarterly sales data
+   let quarterlySalesSchema = ^TableSchema<Any>(
+      name = 'quarterly_sales',
+      columns = newMap([
+         pair('region', String),
+         pair('Q1', Decimal),
+         pair('Q2', Decimal),
+         pair('Q3', Decimal),
+         pair('Q4', Decimal)
+      ])
+   );
+   
+   // Create a table with schema
+   let quarterlySalesTable = tableWithSchema('quarterly_sales', $quarterlySalesSchema);
+   
+   // Create a query with UNPIVOT
+   let query = select([
+      as(col('region'), 'region'),
+      as(col('quarter'), 'quarter'),
+      as(col('amount'), 'amount')
+   ])->from(
+      unpivot(
+         $quarterlySalesTable,
+         [~($quarterlySalesSchema, 'Q1'), ~($quarterlySalesSchema, 'Q2'), 
+          ~($quarterlySalesSchema, 'Q3'), ~($quarterlySalesSchema, 'Q4')],
+         'quarter',
+         'amount'
+      )
+   );
+   
+   // Expected SQL for Snowflake
+   let expectedSnowflake = 'SELECT region AS region, quarter AS quarter, amount AS amount\nFROM quarterly_sales UNPIVOT(amount FOR quarter IN (Q1, Q2, Q3, Q4))';
+   
+   // Expected SQL for DuckDB
+   let expectedDuckDB = 'SELECT region AS region, quarter AS quarter, amount AS amount\nFROM quarterly_sales UNPIVOT(amount FOR quarter IN (Q1, Q2, Q3, Q4))';
+   
+   assertEquals($expectedSnowflake, $query->generateSnowflakeSQL()) &&
+   assertEquals($expectedDuckDB, $query->generateDuckDBSQL());
+   
+   true;
+}
+
+// Test GROUP BY CUBE
+function <<test.Test>> meta::pure::dsl::tests::testGroupByCube(): Boolean[1]
+{
+   // Define a table schema for sales data
+   let salesSchema = ^TableSchema<Any>(
+      name = 'sales',
+      columns = newMap([
+         pair('region', String),
+         pair('product', String),
+         pair('sales_amount', Decimal)
+      ])
+   );
+   
+   // Create a table with schema
+   let salesTable = tableWithSchema('sales', $salesSchema);
+   
+   // Create a query with GROUP BY CUBE
+   let query = select([
+      as(~($salesSchema, 'region'), 'region'),
+      as(~($salesSchema, 'product'), 'product'),
+      as(sum(~($salesSchema, 'sales_amount')), 'total_sales')
+   ])->from($salesTable)
+     ->groupByCube([~($salesSchema, 'region'), ~($salesSchema, 'product')]);
+   
+   // Expected SQL for Snowflake
+   let expectedSnowflake = 'SELECT region AS region, product AS product, SUM(sales_amount) AS total_sales\nFROM sales\nGROUP BY CUBE (region, product)';
+   
+   // Expected SQL for DuckDB
+   let expectedDuckDB = 'SELECT region AS region, product AS product, SUM(sales_amount) AS total_sales\nFROM sales\nGROUP BY CUBE (region, product)';
+   
+   assertEquals($expectedSnowflake, $query->generateSnowflakeSQL()) &&
+   assertEquals($expectedDuckDB, $query->generateDuckDBSQL());
+   
+   true;
+}
+
+// Test GROUP BY ROLLUP
+function <<test.Test>> meta::pure::dsl::tests::testGroupByRollup(): Boolean[1]
+{
+   // Define a table schema for sales data
+   let salesSchema = ^TableSchema<Any>(
+      name = 'sales',
+      columns = newMap([
+         pair('region', String),
+         pair('product', String),
+         pair('year', Integer),
+         pair('sales_amount', Decimal)
+      ])
+   );
+   
+   // Create a table with schema
+   let salesTable = tableWithSchema('sales', $salesSchema);
+   
+   // Create a query with GROUP BY ROLLUP
+   let query = select([
+      as(~($salesSchema, 'region'), 'region'),
+      as(~($salesSchema, 'product'), 'product'),
+      as(~($salesSchema, 'year'), 'year'),
+      as(sum(~($salesSchema, 'sales_amount')), 'total_sales')
+   ])->from($salesTable)
+     ->groupByRollup([~($salesSchema, 'region'), ~($salesSchema, 'product'), ~($salesSchema, 'year')]);
+   
+   // Expected SQL for Snowflake
+   let expectedSnowflake = 'SELECT region AS region, product AS product, year AS year, SUM(sales_amount) AS total_sales\nFROM sales\nGROUP BY ROLLUP (region, product, year)';
+   
+   // Expected SQL for DuckDB
+   let expectedDuckDB = 'SELECT region AS region, product AS product, year AS year, SUM(sales_amount) AS total_sales\nFROM sales\nGROUP BY ROLLUP (region, product, year)';
+   
+   assertEquals($expectedSnowflake, $query->generateSnowflakeSQL()) &&
+   assertEquals($expectedDuckDB, $query->generateDuckDBSQL());
+   
+   true;
+}
+
+// Test GROUP BY GROUPING SETS
+function <<test.Test>> meta::pure::dsl::tests::testGroupByGroupingSets(): Boolean[1]
+{
+   // Define a table schema for sales data
+   let salesSchema = ^TableSchema<Any>(
+      name = 'sales',
+      columns = newMap([
+         pair('region', String),
+         pair('product', String),
+         pair('year', Integer),
+         pair('sales_amount', Decimal)
+      ])
+   );
+   
+   // Create a table with schema
+   let salesTable = tableWithSchema('sales', $salesSchema);
+   
+   // Create a query with GROUP BY GROUPING SETS
+   let query = select([
+      as(~($salesSchema, 'region'), 'region'),
+      as(~($salesSchema, 'product'), 'product'),
+      as(~($salesSchema, 'year'), 'year'),
+      as(sum(~($salesSchema, 'sales_amount')), 'total_sales')
+   ])->from($salesTable)
+     ->groupByGroupingSets([
+        groupingSet([~($salesSchema, 'region')]),
+        groupingSet([~($salesSchema, 'product')]),
+        groupingSet([~($salesSchema, 'region'), ~($salesSchema, 'product')]),
+        groupingSet([~($salesSchema, 'region'), ~($salesSchema, 'year')])
+     ]);
+   
+   // Expected SQL for Snowflake
+   let expectedSnowflake = 'SELECT region AS region, product AS product, year AS year, SUM(sales_amount) AS total_sales\nFROM sales\nGROUP BY GROUPING SETS ((region), (product), (region, product), (region, year))';
+   
+   // Expected SQL for DuckDB
+   let expectedDuckDB = 'SELECT region AS region, product AS product, year AS year, SUM(sales_amount) AS total_sales\nFROM sales\nGROUP BY GROUPING SETS ((region), (product), (region, product), (region, year))';
+   
+   assertEquals($expectedSnowflake, $query->generateSnowflakeSQL()) &&
+   assertEquals($expectedDuckDB, $query->generateDuckDBSQL());
+   
+   true;
+}

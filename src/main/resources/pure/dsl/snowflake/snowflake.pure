@@ -25,13 +25,38 @@ import meta::pure::dsl::snowflake::*;
 // Main function to generate Snowflake SQL from a DataFrame
 function meta::pure::dsl::snowflake::generateSnowflakeSQL(df: DataFrame[1]): String[1]
 {
+   $df->generateWithClause() + 
    $df->generateSelectClause() + 
    $df->generateFromClause() + 
    $df->generateWhereClause() + 
    $df->generateGroupByClause() + 
    $df->generateHavingClause() + 
+   $df->generateQualifyClause() + 
    $df->generateOrderByClause() + 
    $df->generateLimitOffsetClause()
+}
+
+// Generate the QUALIFY clause
+function <<access.private>> meta::pure::dsl::snowflake::generateQualifyClause(df: DataFrame[1]): String[1]
+{
+   if($df.qualify->isEmpty(), 
+      '', 
+      '\nQUALIFY ' + $df.qualify->toOne()->generateSnowflakeExpression())
+}
+
+// Generate the WITH clause
+function <<access.private>> meta::pure::dsl::snowflake::generateWithClause(df: DataFrame[1]): String[1]
+{
+   if($df.ctes->isEmpty(),
+      '',
+      'WITH ' + 
+      if($df.ctes->exists(c | $c.recursive == true), 'RECURSIVE ', '') +
+      $df.ctes->map(c | 
+         $c.name + 
+         if($c.columns->isEmpty(), '', '(' + $c.columns->joinStrings(', ') + ')') + 
+         ' AS (' + $c.dataFrame->generateSnowflakeSQL() + ')'
+      )->joinStrings(', ') + '\n'
+   )
 }
 
 // Generate the SELECT clause
@@ -62,9 +87,18 @@ function <<access.private>> meta::pure::dsl::snowflake::generateWhereClause(df: 
 // Generate the GROUP BY clause
 function <<access.private>> meta::pure::dsl::snowflake::generateGroupByClause(df: DataFrame[1]): String[1]
 {
-   if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
-      '', 
-      '\nGROUP BY ' + $df.groupBy.columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', '))
+   if($df.groupBy->isEmpty(),
+      '',
+      '\nGROUP BY ' + 
+      if($df.groupBy.sets->isNotEmpty(),
+         'GROUPING SETS (' + 
+         $df.groupBy.sets->map(s | '(' + $s.expressions->map(e | $e->generateSnowflakeExpression())->joinStrings(', ') + ')')
+            ->joinStrings(', ') + ')',
+         if($df.groupBy.type == GroupByType.CUBE,
+            'CUBE (' + $df.groupBy.columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', ') + ')',
+            if($df.groupBy.type == GroupByType.ROLLUP,
+               'ROLLUP (' + $df.groupBy.columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', ') + ')',
+               $df.groupBy.columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', ')))))
 }
 
 // Generate the HAVING clause
@@ -98,6 +132,19 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeDataSou
       t: TableReference[1] | if($t.schema->isNotEmpty(), $t.schema->toOne() + '.', '') + $t.tableName + if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), ''),
       j: JoinOperation[1] | $j.left->generateSnowflakeDataSource() + ' ' + $j.joinType->generateSnowflakeJoinType() + ' ' + $j.right->generateSnowflakeDataSource() + ' ON ' + $j.condition->generateSnowflakeExpression(),
       s: SubquerySource[1] | '(' + $s.dataFrame->generateSnowflakeSQL() + ') AS ' + $s.alias,
+      l: LateralJoinOperation[1] | $l.left->generateSnowflakeDataSource() + ' ' + 
+         $l.joinType->generateSnowflakeJoinType() + ' LATERAL ' + 
+         '(' + $l.right.dataFrame->generateSnowflakeSQL() + ') AS ' + $l.right.alias +
+         if($l.condition->isEmpty(), '', ' ON ' + $l.condition->toOne()->generateSnowflakeExpression()),
+      p: PivotClause[1] | $p.source->generateSnowflakeDataSource() + 
+         ' PIVOT(' + $p.valueColumn->generateSnowflakeExpression() + ' FOR ' + 
+         $p.pivotColumn->generateSnowflakeExpression() + ' IN (' + 
+         $p.pivotValues->map(v | $v->generateSnowflakeExpression())->joinStrings(', ') + 
+         '))' + if($p.alias->isNotEmpty(), ' AS ' + $p.alias->toOne(), ''),
+      u: UnpivotClause[1] | $u.source->generateSnowflakeDataSource() + 
+         ' UNPIVOT(' + $u.valueColumn + ' FOR ' + $u.nameColumn + ' IN (' + 
+         $u.valueColumns->map(c | $c->generateSnowflakeExpression())->joinStrings(', ') + 
+         '))' + if($u.alias->isNotEmpty(), ' AS ' + $u.alias->toOne(), ''),
       d: DataSource[1] | 'UNKNOWN_SOURCE_TYPE'
    ])
 }

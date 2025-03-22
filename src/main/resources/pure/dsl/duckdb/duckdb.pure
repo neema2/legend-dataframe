@@ -25,6 +25,7 @@ import meta::pure::dsl::duckdb::*;
 // Main function to generate DuckDB SQL from a DataFrame
 function meta::pure::dsl::duckdb::generateDuckDBSQL(df: DataFrame[1]): String[1]
 {
+   $df->generateWithClause() + 
    $df->generateSelectClause() + 
    $df->generateFromClause() + 
    $df->generateWhereClause() + 
@@ -32,6 +33,21 @@ function meta::pure::dsl::duckdb::generateDuckDBSQL(df: DataFrame[1]): String[1]
    $df->generateHavingClause() + 
    $df->generateOrderByClause() + 
    $df->generateLimitOffsetClause()
+}
+
+// Generate the WITH clause
+function <<access.private>> meta::pure::dsl::duckdb::generateWithClause(df: DataFrame[1]): String[1]
+{
+   if($df.ctes->isEmpty(),
+      '',
+      'WITH ' + 
+      if($df.ctes->exists(c | $c.recursive == true), 'RECURSIVE ', '') +
+      $df.ctes->map(c | 
+         $c.name + 
+         if($c.columns->isEmpty(), '', '(' + $c.columns->joinStrings(', ') + ')') + 
+         ' AS (' + $c.dataFrame->generateDuckDBSQL() + ')'
+      )->joinStrings(', ') + '\n'
+   )
 }
 
 // Generate the SELECT clause
@@ -62,9 +78,18 @@ function <<access.private>> meta::pure::dsl::duckdb::generateWhereClause(df: Dat
 // Generate the GROUP BY clause
 function <<access.private>> meta::pure::dsl::duckdb::generateGroupByClause(df: DataFrame[1]): String[1]
 {
-   if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
-      '', 
-      '\nGROUP BY ' + $df.groupBy.columns->map(c | $c->generateDuckDBExpression())->joinStrings(', '))
+   if($df.groupBy->isEmpty(),
+      '',
+      '\nGROUP BY ' + 
+      if($df.groupBy.sets->isNotEmpty(),
+         'GROUPING SETS (' + 
+         $df.groupBy.sets->map(s | '(' + $s.expressions->map(e | $e->generateDuckDBExpression())->joinStrings(', ') + ')')
+            ->joinStrings(', ') + ')',
+         if($df.groupBy.type == GroupByType.CUBE,
+            'CUBE (' + $df.groupBy.columns->map(c | $c->generateDuckDBExpression())->joinStrings(', ') + ')',
+            if($df.groupBy.type == GroupByType.ROLLUP,
+               'ROLLUP (' + $df.groupBy.columns->map(c | $c->generateDuckDBExpression())->joinStrings(', ') + ')',
+               $df.groupBy.columns->map(c | $c->generateDuckDBExpression())->joinStrings(', ')))))
 }
 
 // Generate the HAVING clause
@@ -98,6 +123,19 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBDataSource(so
       t: TableReference[1] | if($t.schema->isNotEmpty(), $t.schema->toOne() + '.', '') + $t.tableName + if($t.alias->isNotEmpty(), ' AS ' + $t.alias->toOne(), ''),
       j: JoinOperation[1] | $j.left->generateDuckDBDataSource() + ' ' + $j.joinType->generateDuckDBJoinType() + ' ' + $j.right->generateDuckDBDataSource() + ' ON ' + $j.condition->generateDuckDBExpression(),
       s: SubquerySource[1] | '(' + $s.dataFrame->generateDuckDBSQL() + ') AS ' + $s.alias,
+      l: LateralJoinOperation[1] | $l.left->generateDuckDBDataSource() + ' ' + 
+         $l.joinType->generateDuckDBJoinType() + ' LATERAL ' + 
+         '(' + $l.right.dataFrame->generateDuckDBSQL() + ') AS ' + $l.right.alias +
+         if($l.condition->isEmpty(), '', ' ON ' + $l.condition->toOne()->generateDuckDBExpression()),
+      p: PivotClause[1] | $p.source->generateDuckDBDataSource() + 
+         ' PIVOT(' + $p.valueColumn->generateDuckDBExpression() + ' FOR ' + 
+         $p.pivotColumn->generateDuckDBExpression() + ' IN (' + 
+         $p.pivotValues->map(v | $v->generateDuckDBExpression())->joinStrings(', ') + 
+         '))' + if($p.alias->isNotEmpty(), ' AS ' + $p.alias->toOne(), ''),
+      u: UnpivotClause[1] | $u.source->generateDuckDBDataSource() + 
+         ' UNPIVOT(' + $u.valueColumn + ' FOR ' + $u.nameColumn + ' IN (' + 
+         $u.valueColumns->map(c | $c->generateDuckDBExpression())->joinStrings(', ') + 
+         '))' + if($u.alias->isNotEmpty(), ' AS ' + $u.alias->toOne(), ''),
       d: DataSource[1] | 'UNKNOWN_SOURCE_TYPE'
    ])
 }

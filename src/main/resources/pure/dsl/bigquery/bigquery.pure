@@ -257,34 +257,10 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryCase(case
 // Generate BigQuery window function
 function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowFunction(windowFunc: WindowFunctionColumn[1]): String[1]
 {
+   // Use common implementation from windowFunctions.pure
    $windowFunc.function->generateBigQueryExpression() + 
    ' OVER (' + 
-   if($windowFunc.partitionBy->isEmpty(), 
-      '', 
-      'PARTITION BY ' + $windowFunc.partitionBy->map(p | $p->generateBigQueryExpression())->joinStrings(', ')) + 
-   if($windowFunc.orderBy->isEmpty(), 
-      '', 
-      if($windowFunc.partitionBy->isEmpty(), '', ' ') + 
-      'ORDER BY ' + $windowFunc.orderBy->map(o | 
-         $o.column->generateBigQueryExpression() + 
-         if($o.direction == SortDirection.ASC, '', ' DESC') + 
-         if($o.nulls == NullsOrder.FIRST, ' NULLS FIRST', if($o.nulls == NullsOrder.LAST, ' NULLS LAST', ''))
-      )->joinStrings(', ')) + 
-   if($windowFunc.frameClause->isEmpty(), 
-      '', 
-      if($windowFunc.partitionBy->isEmpty() && $windowFunc.orderBy->isEmpty(), '', ' ') + 
-      $windowFunc.frameClause->toOne().type->toString() + ' ' + 
-      if($windowFunc.frameClause->toOne().start == FrameBoundary.UNBOUNDED_PRECEDING, 
-         'UNBOUNDED PRECEDING', 
-         if($windowFunc.frameClause->toOne().start == FrameBoundary.CURRENT_ROW, 
-            'CURRENT ROW', 
-            $windowFunc.frameClause->toOne().startOffset->toOne()->toString() + ' PRECEDING')) + 
-      ' AND ' + 
-      if($windowFunc.frameClause->toOne().end == FrameBoundary.UNBOUNDED_FOLLOWING, 
-         'UNBOUNDED FOLLOWING', 
-         if($windowFunc.frameClause->toOne().end == FrameBoundary.CURRENT_ROW, 
-            'CURRENT ROW', 
-            $windowFunc.frameClause->toOne().endOffset->toOne()->toString() + ' FOLLOWING'))) + 
+   meta::pure::dsl::dataframe::generateWindowSpecFromWindowFunctionColumn($windowFunc, {e | generateBigQueryExpression($e)}) +
    ')';
 }
 
@@ -308,38 +284,7 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryUnpivot(u
    ')';
 }
 
-// Generate SQL for window functions (with WindowFunction parameter)
-function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowFunctionWithWindow(func: WindowFunction[1]): String[1]
-{
-   meta::pure::dsl::dataframe::generateWindowFunctionSQL($func, {e | generateBigQueryExpression($e)}, {w | generateBigQueryWindowSpec($w)});
-}
-
-// Generate SQL for window specifications
-function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryWindowSpec(windowSpec: Window[1]): String[1]
-{
-   meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateBigQueryExpression($e)});
-}
-
-// Generate SQL for _Window specifications
-function <<access.private>> meta::pure::dsl::bigquery::generateWindowSpecSQL(windowSpec: _Window<Any>[1]): String[1]
-{
-   // Use central implementation
-   meta::pure::dsl::dataframe::generateWindowSpecSQL($windowSpec, {e | generateBigQueryExpression($e)});
-}
-
-// Generate SQL for window frames
-function <<access.private>> meta::pure::dsl::bigquery::generateFrameSQL(frame: Frame[1]): String[1]
-{
-   // Use central implementation
-   meta::pure::dsl::dataframe::generateFrameSQL($frame);
-}
-
-// Generate SQL for frame values
-function <<access.private>> meta::pure::dsl::bigquery::generateFrameValueSQL(frameValue: FrameValue[1]): String[1]
-{
-   // Use central implementation
-   meta::pure::dsl::dataframe::generateFrameValueSQL($frameValue);
-}
+// Window functions are now handled by the common implementation in windowFunctions.pure
 
 // Generate SQL for a data source
 function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryDataSource(source: DataSource[1]): String[1]

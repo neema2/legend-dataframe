@@ -388,9 +388,10 @@ function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], tableSchema: Ta
    ^$df(filter = $condition)
 }
 
+// For backward compatibility (deprecated)
 function meta::pure::dsl::dataframe::where(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
 {
-   ^$df(filter = $condition)
+   filter($df, {x | $condition})
 }
 
 // Type-safe groupBy functions
@@ -998,4 +999,53 @@ function meta::pure::dsl::dataframe::cte(name: String[1], columns: String[*], qu
 function meta::pure::dsl::dataframe::recursiveCte(name: String[1], columns: String[*], query: DataFrame[1]): CommonTableExpression[1]
 {
    ^CommonTableExpression(name = $name, columns = $columns, query = $query, isRecursive = true);
+}
+
+// Inline TDS definition
+native function meta::pure::dsl::dataframe::TDS<T>(csv: String[1]): DataFrame<T>[1];
+
+// Syntax for inline TDS definition with columns and data
+function meta::pure::dsl::dataframe::createInlineTDS(csvData: String[1]): DataFrame[1]
+{
+   // Parse the CSV data and create a DataFrame
+   ^DataFrame(source = ^TableReference(tableName = 'inline_tds'))
+}
+
+// Convert TDS to DataFrame
+function meta::pure::dsl::dataframe::fromTDS<T>(tds: TDS<T>[1]): DataFrame[1]
+{
+   // Extract column names from TDS
+   let columnNames = $tds->getColumnNames();
+   
+   // Create columns from TDS
+   let columns = $columnNames->map(name | 
+      ^Column(name = $name, expression = ^ColumnReference(columnName = $name), alias = $name)
+   );
+   
+   // Create DataFrame from TDS
+   ^DataFrame(
+      columns = $columns,
+      source = ^TableReference(tableName = 'inline_tds')
+   )
+}
+
+// Parse #TDS syntax
+function meta::pure::dsl::dataframe::parseTDSLiteral(tdsText: String[1]): DataFrame[1]
+{
+   // Extract column names and data from TDS literal
+   let lines = $tdsText->split('\n');
+   
+   // First line contains column names
+   let columnNames = $lines->at(0)->trim()->split('\s+');
+   
+   // Create columns
+   let columns = $columnNames->map(name | 
+      ^Column(name = $name, expression = ^ColumnReference(columnName = $name), alias = $name)
+   );
+   
+   // Create DataFrame
+   ^DataFrame(
+      columns = $columns,
+      source = ^TableReference(tableName = 'inline_tds')
+   )
 }

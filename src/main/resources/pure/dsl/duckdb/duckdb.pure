@@ -306,3 +306,19 @@ function <<access.private>> meta::pure::dsl::duckdb::generateSQLFromWindowSpec(w
    
    $partitionBy + $orderBy;
 }
+
+// Handle inline TDS in DuckDB SQL generation
+function meta::pure::dsl::duckdb::handleInlineTDS(df: DataFrame[1]): String[1]
+{
+   if($df.source->instanceOf(TableReference) && $df.source->cast(@TableReference).tableName == 'inline_tds',
+      |'(VALUES ' + $df->getInlineTDSValues() + ') AS inline_tds(' + $df.columns->map(c | $c.name)->joinStrings(', ') + ')',
+      |$df.source->generateFromClause()
+   )
+}
+
+// Helper function to get inline TDS values
+function meta::pure::dsl::duckdb::getInlineTDSValues(df: DataFrame[1]): String[1]
+{
+   // Generate values clause for inline TDS
+   'TODO: Implement conversion of TDS data to VALUES syntax'
+}

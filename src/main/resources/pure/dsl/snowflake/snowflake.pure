@@ -306,3 +306,19 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSQLFromWindowSpe
    
    $partitionBy + $orderBy;
 }
+
+// Handle inline TDS in Snowflake SQL generation
+function meta::pure::dsl::snowflake::handleInlineTDS(df: DataFrame[1]): String[1]
+{
+   if($df.source->instanceOf(TableReference) && $df.source->cast(@TableReference).tableName == 'inline_tds',
+      |'(SELECT ' + $df.columns->map(c | $c.name)->joinStrings(', ') + ' FROM VALUES ' + $df->getInlineTDSValues() + ')',
+      |$df.source->generateFromClause()
+   )
+}
+
+// Helper function to get inline TDS values
+function meta::pure::dsl::snowflake::getInlineTDSValues(df: DataFrame[1]): String[1]
+{
+   // Generate values clause for inline TDS
+   'TODO: Implement conversion of TDS data to VALUES syntax'
+}

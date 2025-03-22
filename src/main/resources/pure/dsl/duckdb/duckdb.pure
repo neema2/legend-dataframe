@@ -408,6 +408,5 @@ function meta::pure::dsl::duckdb::handleInlineTDS(df: DataFrame[1]): String[1]
 // Helper function to get inline TDS values
 function meta::pure::dsl::duckdb::getInlineTDSValues(df: DataFrame[1]): String[1]
 {
-   // Generate values clause for inline TDS
-   'TODO: Implement conversion of TDS data to VALUES syntax'
+   meta::pure::dsl::dataframe::getInlineTDSValues($df);
 }

@@ -468,10 +468,5 @@ function meta::pure::dsl::snowflake::handleInlineTDS(df: DataFrame[1]): String[1
 // Helper function to get inline TDS values
 function meta::pure::dsl::snowflake::getInlineTDSValues(df: DataFrame[1]): String[1]
 {
-   if($df.source->instanceOf(TableReference) && $df.source->cast(@TableReference).inlineTDSData->isNotEmpty(),
-      | $df.source->cast(@TableReference).inlineTDSData->toOne().rows->map(row | 
-          '(' + $row->map(cell | generateSnowflakeLiteral($cell))->joinStrings(', ') + ')'
-        )->joinStrings(', '),
-      | 'ERROR: No inline TDS data found'
-   )
+   meta::pure::dsl::dataframe::getInlineTDSValues($df);
 }

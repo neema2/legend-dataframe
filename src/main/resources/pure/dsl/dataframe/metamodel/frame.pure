@@ -15,6 +15,7 @@
 import meta::pure::dsl::dataframe::*;
 import meta::pure::dsl::dataframe::metamodel::*;
 import meta::pure::dsl::dataframe::metamodel::frame::*;
+import meta::pure::dsl::dataframe::metamodel::window::*;
 
 Class meta::pure::dsl::dataframe::metamodel::frame::Frame
 {
@@ -41,4 +42,105 @@ Class meta::pure::dsl::dataframe::metamodel::frame::FrameIntValue extends FrameV
 
 Class meta::pure::dsl::dataframe::metamodel::frame::UnboundedFrameValue extends FrameValue
 {
+}
+
+// Convenience function to create a FrameValue from an Integer or UnboundedFrameValue
+function meta::pure::dsl::dataframe::metamodel::frame::toFrameValue(value: Integer[1]): FrameValue[1]
+{
+   if($value == 0, 
+      ^FrameIntValue(value = 0),
+      if($value > 0,
+         ^FrameIntValue(value = $value),
+         ^FrameIntValue(value = $value)
+      )
+   );
+}
+
+function meta::pure::dsl::dataframe::metamodel::frame::toFrameValue(value: UnboundedFrameValue[1]): FrameValue[1]
+{
+   $value;
+}
+
+// Helper function to convert WindowFrameBound to FrameValue
+function meta::pure::dsl::dataframe::metamodel::frame::toFrameValue(bound: WindowFrameBound[1]): FrameValue[1]
+{
+   $bound.type->match([
+      WindowFrameBoundType.UNBOUNDED_PRECEDING | ^UnboundedFrameValue(),
+      WindowFrameBoundType.UNBOUNDED_FOLLOWING | ^UnboundedFrameValue(),
+      WindowFrameBoundType.CURRENT_ROW | ^FrameIntValue(value = 0),
+      WindowFrameBoundType.PRECEDING | ^FrameIntValue(value = -1 * $bound.offset->toOne()),
+      WindowFrameBoundType.FOLLOWING | ^FrameIntValue(value = $bound.offset->toOne())
+   ]);
+}
+
+// Convenience function to create an UnboundedFrameValue
+function meta::pure::dsl::dataframe::metamodel::frame::unbounded(): UnboundedFrameValue[1]
+{
+   ^UnboundedFrameValue();
+}
+
+// Convenience function to create a Rows frame with start and end bounds
+function meta::pure::dsl::dataframe::metamodel::frame::rows(start: Integer[1], end: Integer[1]): Frame[1]
+{
+   ^Rows(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::metamodel::frame::rows(start: UnboundedFrameValue[1], end: Integer[1]): Frame[1]
+{
+   ^Rows(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::metamodel::frame::rows(start: Integer[1], end: UnboundedFrameValue[1]): Frame[1]
+{
+   ^Rows(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::metamodel::frame::rows(start: UnboundedFrameValue[1], end: UnboundedFrameValue[1]): Frame[1]
+{
+   ^Rows(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+// Convenience function to create a Range frame with start and end bounds
+function meta::pure::dsl::dataframe::metamodel::frame::range(start: Integer[1], end: Integer[1]): Frame[1]
+{
+   ^Range(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::metamodel::frame::range(start: UnboundedFrameValue[1], end: Integer[1]): Frame[1]
+{
+   ^Range(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::metamodel::frame::range(start: Integer[1], end: UnboundedFrameValue[1]): Frame[1]
+{
+   ^Range(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::metamodel::frame::range(start: UnboundedFrameValue[1], end: UnboundedFrameValue[1]): Frame[1]
+{
+   ^Range(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
 }

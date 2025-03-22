@@ -370,18 +370,4 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryLateralJo
       ' ON ' + $lateral.condition->toOne()->generateBigQueryExpression());
 }
 
-;// Add BigQuery and PostgreSQL as supported databases
-function meta::pure::dsl::dataframe::toSQL(df: DataFrame[1], database: Database[1]);: String[1]
-{
-   $database->match([
-      db: Database[1] | if($db == Database.SNOWFLAKE, 
-                           meta::pure::dsl::snowflake::generateSnowflakeSQL($df),
-                           if($db == Database.DUCKDB,
-                              meta::pure::dsl::duckdb::generateDuckDBSQL($df),
-                              if($db == Database.BIGQUERY,
-                                 meta::pure::dsl::bigquery::generateBigQuerySQL($df),
-                                 if($db == Database.POSTGRES,
-                                    meta::pure::dsl::postgres::generatePostgresSQL($df),
-                                    fail('Unsupported database: ' + $db->toString()); ''))))
-   ]);
-}
+// toSQL function moved to dataframe.pure

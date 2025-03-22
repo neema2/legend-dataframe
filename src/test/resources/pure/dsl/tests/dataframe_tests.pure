@@ -14,6 +14,7 @@
 
 import meta::pure::dsl::dataframe::*;
 import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::column::*;
 import meta::pure::dsl::snowflake::*;
 import meta::pure::dsl::duckdb::*;
 import meta::pure::dsl::tests::*;
@@ -24,11 +25,14 @@ import meta::pure::dsl::tests::*;
 
 function <<test.Test>> meta::pure::dsl::tests::testSimpleSelect(): Boolean[1]
 {
-   // Create a simple SELECT query
+   // Create a simple SELECT query using type-safe constructs
    let df = select([
       as(col('id'), 'id'),
       as(col('name'), 'name')
    ])->from(table('customers'));
+   
+   // Type-safe version using tilde notation
+   let typeSafeDf = select(~['id', 'name'])->from(table('customers'));
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -48,6 +52,11 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithFilter(): Boolean[1
       as(col('id'), 'id'),
       as(col('name'), 'name')
    ])->from(table('customers'))->where(eq(col('id'), literal(100)));
+   
+   // Type-safe version using tilde notation and filter function
+   let typeSafeDf = select(~['id', 'name'])
+      ->from(table('customers'))
+      ->filter({x | $x.id == 100});
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -95,6 +104,13 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithGroupBy(): Boolean[
       as(sum(col('amount')), 'total_amount')
    ])->from(table('orders'))->groupBy([col('category')]);
    
+   // Type-safe version using tilde notation
+   let typeSafeDf = select([
+      as(col('category'), 'category'),
+      as(count(col('id')), 'count'),
+      as(sum(~'amount'), 'total_amount')
+   ])->from(table('orders'))->groupBy(~'category');
+   
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
    assertEquals('SELECT category AS category, COUNT(id) AS count, SUM(amount) AS total_amount\nFROM orders\nGROUP BY category', $snowflakeSQL);
@@ -114,6 +130,12 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithOrderBy(): Boolean[
       as(col('name'), 'name')
    ])->from(table('customers'))->orderBy([asc(col('name')), desc(col('id'))]);
    
+   // Type-safe version using tilde notation
+   let typeSafeDf = select(~['id', 'name'])
+      ->from(table('customers'))
+      ->orderBy(~'name', false)  // ASC
+      ->orderBy(~'id', true);    // DESC
+   
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
    assertEquals('SELECT id AS id, name AS name\nFROM customers\nORDER BY name ASC, id DESC', $snowflakeSQL);
@@ -132,6 +154,12 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithLimit(): Boolean[1]
       as(col('id'), 'id'),
       as(col('name'), 'name')
    ])->from(table('customers'))->limit(10)->offset(20);
+   
+   // Type-safe version using tilde notation
+   let typeSafeDf = select(~['id', 'name'])
+      ->from(table('customers'))
+      ->limit(10)
+      ->offset(20);
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -221,12 +249,81 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabaseSpecificSyntaxDiffere
    true;
 }
 
+// Tests for type-safe features
+
+function <<test.Test>> meta::pure::dsl::tests::testTypeSafeColSpec(): Boolean[1]
+{
+   // Test ColSpec creation with tilde notation
+   let col = ~'column1';
+   assertEquals('column1', $col.name);
+   
+   // Test ColSpecArray creation with tilde notation
+   let cols = ~['col1', 'col2', 'col3'];
+   assertEquals(['col1', 'col2', 'col3'], $cols.names->joinStrings(', '));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testTypeSafeAggregateFunctions(): Boolean[1]
+{
+   // Test type-safe aggregate functions
+   let sumCol = sum(~'value');
+   assertEquals('sum_value', $sumCol.name);
+   
+   let avgCol = avg(~'price');
+   assertEquals('avg_price', $avgCol.name);
+   
+   let minCol = min(~'score');
+   assertEquals('min_score', $minCol.name);
+   
+   let maxCol = max(~'rating');
+   assertEquals('max_rating', $maxCol.name);
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testTypeSafeWindowSpec(): Boolean[1]
+{
+   // Test window specification with tilde notation
+   let windowSpec1 = over(~'department');
+   assertEquals(['department'], $windowSpec1.partitionBy->joinStrings(', '));
+   assertEquals([], $windowSpec1.orderBy);
+   
+   let windowSpec2 = over(~['region', 'department']);
+   assertEquals(['region', 'department'], $windowSpec2.partitionBy->joinStrings(', '));
+   assertEquals([], $windowSpec2.orderBy);
+   
+   let windowSpec3 = over(~'department', ~'salary');
+   assertEquals(['department'], $windowSpec3.partitionBy->joinStrings(', '));
+   assertEquals(['salary'], $windowSpec3.orderBy->joinStrings(', '));
+   
+   let windowSpec4 = over(~['region', 'department'], ~['date', 'id']);
+   assertEquals(['region', 'department'], $windowSpec4.partitionBy->joinStrings(', '));
+   assertEquals(['date', 'id'], $windowSpec4.orderBy->joinStrings(', '));
+   
+   true;
+}
+
 // Helper function for testing
 function <<access.private>> meta::pure::dsl::tests::assertEquals(expected: String[1], actual: String[1]): Boolean[1]
 {
    if($expected != $actual)
    {
       print('Expected: ' + $expected + '\nActual: ' + $actual);
+      false;
+   }
+   else
+   {
+      true;
+   }
+}
+
+// Helper function for testing with Any type
+function <<access.private>> meta::pure::dsl::tests::assertEquals(expected: Any[1], actual: Any[1]): Boolean[1]
+{
+   if($expected != $actual)
+   {
+      print('Expected: ' + $expected->toString() + '\nActual: ' + $actual->toString());
       false;
    }
    else

@@ -14,6 +14,7 @@
 
 import meta::pure::dsl::dataframe::*;
 import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::column::*;
 
 /**
  * Core DataFrame DSL for modeling SQL SELECT statements
@@ -171,9 +172,57 @@ Enum meta::pure::dsl::dataframe::metamodel::SortDirection
    DESC
 }
 
+// Column specification types for type-safe operations
+Class meta::pure::dsl::dataframe::metamodel::column::ColSpec<T>
+{
+   name: String[1];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::column::ColSpecArray<T>
+{
+   names: String[*];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::column::FuncColSpec<F, Z>
+{
+   name: String[1];
+   func: F[1];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::column::FuncColSpecArray<F, Z>
+{
+   specs: FuncColSpec<F, Z>[*];
+}
+
+// For aggregation functions
+Class meta::pure::dsl::dataframe::metamodel::column::AggColSpec<K, V, R>
+{
+   name: String[1];
+   keyFunc: K[1];
+   valueFunc: V[1];
+}
+
+// Window specification for window functions
+Class meta::pure::dsl::dataframe::metamodel::column::WindowSpec
+{
+   partitionBy: String[*];
+   orderBy: String[*];
+}
+
 // Aggregate functions
 Class meta::pure::dsl::dataframe::metamodel::AggregateFunction extends FunctionExpression
 {
+}
+
+// Tilde notation functions for column references
+function meta::pure::dsl::dataframe::~(name:String[1]):ColSpec<Any>[1]
+{
+    ^ColSpec<Any>(name=$name);
+}
+
+function meta::pure::dsl::dataframe::~(names:String[*]):ColSpecArray<Any>[1]
+{
+    ^ColSpecArray<Any>(names=$names);
 }
 
 // Common aggregate functions
@@ -204,9 +253,50 @@ function meta::pure::dsl::dataframe::newDataFrame(): DataFrame[1]
    ^DataFrame(columns = [], distinct = false)
 }
 
+// Type-safe select functions
+function meta::pure::dsl::dataframe::select<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
+{
+   let newColumns = $cols.names->map(n | $df.columns->filter(c | $c.name == $n)->toOne());
+   ^DataFrame(
+      columns = $newColumns,
+      source = $df.source,
+      distinct = false
+   );
+}
+
+function meta::pure::dsl::dataframe::select<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
+{
+   let newColumn = $df.columns->filter(c | $c.name == $col.name)->toOne();
+   ^DataFrame(
+      columns = [$newColumn],
+      source = $df.source,
+      distinct = false
+   );
+}
+
 function meta::pure::dsl::dataframe::select(columns: Column[*]): DataFrame[1]
 {
    ^DataFrame(columns = $columns, distinct = false)
+}
+
+function meta::pure::dsl::dataframe::selectDistinct<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
+{
+   let newColumns = $cols.names->map(n | $df.columns->filter(c | $c.name == $n)->toOne());
+   ^DataFrame(
+      columns = $newColumns,
+      source = $df.source,
+      distinct = true
+   );
+}
+
+function meta::pure::dsl::dataframe::selectDistinct<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
+{
+   let newColumn = $df.columns->filter(c | $c.name == $col.name)->toOne();
+   ^DataFrame(
+      columns = [$newColumn],
+      source = $df.source,
+      distinct = true
+   );
 }
 
 function meta::pure::dsl::dataframe::selectDistinct(columns: Column[*]): DataFrame[1]
@@ -219,9 +309,26 @@ function meta::pure::dsl::dataframe::from(df: DataFrame[1], source: DataSource[1
    ^$df(source = $source)
 }
 
+// Type-safe filter function
+function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], condition: Function<{T[1]->Boolean[1]}>[1]): DataFrame[1]
+{
+   ^$df(filter = $condition)
+}
+
 function meta::pure::dsl::dataframe::where(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
 {
    ^$df(filter = $condition)
+}
+
+// Type-safe groupBy functions
+function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
+{
+   ^$df(groupBy = ^GroupByClause(columns = $cols.names->map(n | ^ColumnReference(columnName = $n))))
+}
+
+function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
+{
+   ^$df(groupBy = ^GroupByClause(columns = [^ColumnReference(columnName = $col.name)]))
 }
 
 function meta::pure::dsl::dataframe::groupBy(df: DataFrame[1], columns: Expression[*]): DataFrame[1]
@@ -232,6 +339,27 @@ function meta::pure::dsl::dataframe::groupBy(df: DataFrame[1], columns: Expressi
 function meta::pure::dsl::dataframe::having(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
 {
    ^$df(having = $condition)
+}
+
+// Type-safe orderBy functions
+function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1], desc: Boolean[0..1]): DataFrame[1]
+{
+   let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
+   let clauses = $cols.names->map(n | ^OrderByClause(
+      expression = ^ColumnReference(columnName = $n),
+      direction = $direction
+   ));
+   ^$df(orderBy = $clauses);
+}
+
+function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1], desc: Boolean[0..1]): DataFrame[1]
+{
+   let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
+   let clause = ^OrderByClause(
+      expression = ^ColumnReference(columnName = $col.name),
+      direction = $direction
+   );
+   ^$df(orderBy = [$clause]);
 }
 
 function meta::pure::dsl::dataframe::orderBy(df: DataFrame[1], clauses: OrderByClause[*]): DataFrame[1]
@@ -247,6 +375,50 @@ function meta::pure::dsl::dataframe::limit(df: DataFrame[1], limit: Integer[1]):
 function meta::pure::dsl::dataframe::offset(df: DataFrame[1], offset: Integer[1]): DataFrame[1]
 {
    ^$df(offset = $offset)
+}
+
+// Type-safe join functions
+function meta::pure::dsl::dataframe::join<T, V>(left: DataFrame[1], right: DataFrame[1], joinType: JoinType[1], condition: Function<{T[1], V[1]->Boolean[1]}>[1]): DataFrame[1]
+{
+   ^JoinOperation(
+      left = $left.source, 
+      right = $right.source, 
+      joinType = $joinType, 
+      condition = $condition
+   )->from($left.columns->concatenate($right.columns));
+}
+
+// Type-safe over functions for window operations
+function meta::pure::dsl::dataframe::over<T>(cols: ColSpecArray<T>[1]): WindowSpec[1]
+{
+   ^WindowSpec(
+      partitionBy = $cols.names,
+      orderBy = []
+   );
+}
+
+function meta::pure::dsl::dataframe::over<T>(col: ColSpec<T>[1]): WindowSpec[1]
+{
+   ^WindowSpec(
+      partitionBy = [$col.name],
+      orderBy = []
+   );
+}
+
+function meta::pure::dsl::dataframe::over<T, Z>(cols: ColSpecArray<T>[1], orderByCols: ColSpecArray<Z>[1]): WindowSpec[1]
+{
+   ^WindowSpec(
+      partitionBy = $cols.names,
+      orderBy = $orderByCols.names
+   );
+}
+
+function meta::pure::dsl::dataframe::over<T, Z>(col: ColSpec<T>[1], orderByCol: ColSpec<Z>[1]): WindowSpec[1]
+{
+   ^WindowSpec(
+      partitionBy = [$col.name],
+      orderBy = [$orderByCol.name]
+   );
 }
 
 // Helper functions for creating expressions
@@ -388,6 +560,44 @@ function meta::pure::dsl::dataframe::countDistinct(expr: Expression[1]): CountFu
    ^CountFunction(functionName = 'count', parameters = [$expr], distinct = true)
 }
 
+// Type-safe aggregate functions
+function meta::pure::dsl::dataframe::sum<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>[1]
+{
+   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>(
+      name = 'sum_' + $col.name,
+      keyFunc = {x:T[1] | $x->get($col.name)},
+      valueFunc = {values:Any[*] | $values->sum()}
+   );
+}
+
+function meta::pure::dsl::dataframe::avg<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>[1]
+{
+   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>(
+      name = 'avg_' + $col.name,
+      keyFunc = {x:T[1] | $x->get($col.name)},
+      valueFunc = {values:Any[*] | $values->average()}
+   );
+}
+
+function meta::pure::dsl::dataframe::min<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>[1]
+{
+   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>(
+      name = 'min_' + $col.name,
+      keyFunc = {x:T[1] | $x->get($col.name)},
+      valueFunc = {values:Any[*] | $values->min()}
+   );
+}
+
+function meta::pure::dsl::dataframe::max<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>[1]
+{
+   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>(
+      name = 'max_' + $col.name,
+      keyFunc = {x:T[1] | $x->get($col.name)},
+      valueFunc = {values:Any[*] | $values->max()}
+   );
+}
+
+// Legacy functions for backward compatibility
 function meta::pure::dsl::dataframe::sum(expr: Expression[1]): SumFunction[1]
 {
    ^SumFunction(functionName = 'sum', parameters = [$expr])

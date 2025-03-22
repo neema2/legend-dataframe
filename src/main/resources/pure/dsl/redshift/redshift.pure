@@ -22,27 +22,29 @@ import meta::pure::dsl::redshift::*;
  * This module provides functions to convert DataFrame objects to Redshift SQL syntax
  */
 
+// Helper function to expose feature map for testing
+function <<access.private>> meta::pure::dsl::redshift::generateRedshiftSQL_featureMap(): Map<String, Boolean>[1]
+{
+   meta::pure::dsl::dataframe::createFeatureSupportMap(
+      meta::pure::dsl::dataframe::standardFeatureList()->map(f| 
+         if($f.first == 'LATERAL_JOIN' || $f.first == 'CONNECT_BY' || $f.first == 'QUALIFY',
+            pair($f.first, true),
+            $f)
+      )
+   );
+}
+
 // Main function to generate Redshift SQL from a DataFrame
 function meta::pure::dsl::redshift::generateRedshiftSQL(df: DataFrame[1]): String[1]
 {
    // Check for unsupported features using standardized error handling
-   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap([
-      pair('PIVOT', false),
-      pair('UNPIVOT', false),
-      pair('MATCH_RECOGNIZE', false),
-      pair('LATERAL_JOIN', true),
-      pair('AT', false),
-      pair('CHANGES', false),
-      pair('CONNECT_BY', true),
-      pair('SAMPLE', false),
-      pair('QUALIFY', true),
-      pair('STRUCT', false),
-      pair('VALUE', false),
-      pair('EXCEPT', false),
-      pair('REPLACE', false),
-      pair('DIFFERENTIAL_PRIVACY', false),
-      pair('AGGREGATION_THRESHOLD', false)
-   ]);
+   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap(
+      meta::pure::dsl::dataframe::standardFeatureList()->map(f| 
+         if($f.first == 'LATERAL_JOIN' || $f.first == 'CONNECT_BY' || $f.first == 'QUALIFY',
+            pair($f.first, true),
+            $f)
+      )
+   );
    
    meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'Redshift', $supportedFeatures);
    

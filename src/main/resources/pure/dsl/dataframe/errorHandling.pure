@@ -84,3 +84,25 @@ function meta::pure::dsl::dataframe::createFeatureSupportMap(features: Pair<Stri
 {
    newMap($features);
 }
+
+// Standard list of all supported features across all databases
+function meta::pure::dsl::dataframe::standardFeatureList(): Pair<String, Boolean>[*]
+{
+   [
+      pair('PIVOT', false),
+      pair('UNPIVOT', false),
+      pair('MATCH_RECOGNIZE', false),
+      pair('LATERAL_JOIN', false),
+      pair('AT', false),
+      pair('CHANGES', false),
+      pair('CONNECT_BY', false),
+      pair('SAMPLE', false),
+      pair('QUALIFY', false),
+      pair('STRUCT', false),
+      pair('VALUE', false),
+      pair('EXCEPT', false),
+      pair('REPLACE', false),
+      pair('DIFFERENTIAL_PRIVACY', false),
+      pair('AGGREGATION_THRESHOLD', false)
+   ]
+}

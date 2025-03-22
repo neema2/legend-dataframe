@@ -53,6 +53,9 @@ Class meta::pure::dsl::dataframe::metamodel::DataFrame
    valueOutput : Boolean[0..1];
    exceptColumns : String[*];
    replaceColumns : Map<String, Expression>[0..1];
+   
+   // Properties for Databricks features
+   clusterBy : Column[*];
 }
 
 // Column representation
@@ -1188,4 +1191,20 @@ function meta::pure::dsl::dataframe::parseTDSLiteral(tdsText: String[1]): DataFr
 function meta::pure::dsl::dataframe::generateRedshiftSQL(df: DataFrame[1]): String[1]
 {
    meta::pure::dsl::redshift::generateRedshiftSQL($df);
+}
+
+// Convert DataFrame to SQL for the specified database
+function meta::pure::dsl::dataframe::toSQL(df: DataFrame[1], database: Database[1]): String[1]
+{
+   $database->match([
+      db: Database[1] | if($db == Database.SNOWFLAKE, 
+                           meta::pure::dsl::snowflake::generateSnowflakeSQL($df),
+                           if($db == Database.DUCKDB,
+                              meta::pure::dsl::duckdb::generateDuckDBSQL($df),
+                              if($db == Database.BIGQUERY,
+                                 meta::pure::dsl::bigquery::generateBigQuerySQL($df),
+                                 if($db == Database.DATABRICKS,
+                                    meta::pure::dsl::databricks::generateDatabricksSQL($df),
+                                    fail('Unsupported database: ' + $db->toString()); ''))))
+   ]);
 }

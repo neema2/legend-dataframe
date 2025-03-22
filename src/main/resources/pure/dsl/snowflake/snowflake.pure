@@ -24,6 +24,8 @@ import meta::pure::dsl::snowflake::*;
 // Main function to generate Snowflake SQL from a DataFrame
 function meta::pure::dsl::snowflake::generateSnowflakeSQL(df: DataFrame[1]): String[1]
 {
+   let withClause = $df->generateWithClause();
+   $withClause + 
    $df->generateSelectClause() + 
    $df->generateFromClause() + 
    $df->generateWhereClause() + 
@@ -88,6 +90,23 @@ function <<access.private>> meta::pure::dsl::snowflake::generateLimitOffsetClaus
    let limitClause = if($df.limit->isEmpty(), '', '\nLIMIT ' + $df.limit->toOne()->toString());
    let offsetClause = if($df.offset->isEmpty(), '', '\nOFFSET ' + $df.offset->toOne()->toString());
    $limitClause + $offsetClause;
+}
+
+// Generate the WITH clause
+function <<access.private>> meta::pure::dsl::snowflake::generateWithClause(df: DataFrame[1]): String[1]
+{
+   if($df.ctes->isEmpty(), 
+      '', 
+      'WITH ' + $df.ctes->map(cte | 
+         if($cte.isRecursive, 
+            'RECURSIVE ', 
+            '') + 
+         $cte.name + if($cte.columns->isEmpty(), '', '(' + $cte.columns->joinStrings(', ') + ')') + ' AS (' + 
+         if($cte.query->instanceOf(DataFrame), 
+            meta::pure::dsl::snowflake::generateSnowflakeSQL($cte.query->cast(@DataFrame)), 
+            $cte.query->cast(@String)) + 
+         ')'
+      )->joinStrings(',\n') + '\n')
 }
 
 // Generate SQL for a data source

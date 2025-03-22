@@ -33,6 +33,7 @@ Class meta::pure::dsl::dataframe::metamodel::DataFrame
    limit : Integer[0..1];
    offset : Integer[0..1];
    distinct : Boolean[0..1];
+   ctes : CommonTableExpression[*];
 }
 
 // Column representation
@@ -98,6 +99,15 @@ Enum meta::pure::dsl::dataframe::metamodel::JoinType
    RIGHT_OUTER,
    FULL_OUTER,
    CROSS
+}
+
+// Common Table Expression (CTE) for WITH clause
+Class meta::pure::dsl::dataframe::metamodel::CommonTableExpression
+{
+   name : String[1];
+   columns : String[*];
+   query : Any[1]; // Can be DataFrame or String
+   isRecursive : Boolean[0..1];
 }
 
 // Subquery as a data source
@@ -676,4 +686,30 @@ function meta::pure::dsl::dataframe::max(expr: Expression[1]): FunctionExpressio
 function meta::pure::dsl::dataframe::count(expr: Expression[1]): FunctionExpression[1]
 {
    ^FunctionExpression(functionName = 'count', parameters = [$expr]);
+}
+
+// WITH clause helper functions
+function meta::pure::dsl::dataframe::with(df: DataFrame[1], cte: CommonTableExpression[1]): DataFrame[1]
+{
+   ^$df(ctes = $df.ctes->add($cte));
+}
+
+function meta::pure::dsl::dataframe::with(df: DataFrame[1], ctes: CommonTableExpression[*]): DataFrame[1]
+{
+   ^$df(ctes = $df.ctes->concatenate($ctes));
+}
+
+function meta::pure::dsl::dataframe::cte(name: String[1], query: DataFrame[1]): CommonTableExpression[1]
+{
+   ^CommonTableExpression(name = $name, query = $query, isRecursive = false);
+}
+
+function meta::pure::dsl::dataframe::cte(name: String[1], columns: String[*], query: DataFrame[1]): CommonTableExpression[1]
+{
+   ^CommonTableExpression(name = $name, columns = $columns, query = $query, isRecursive = false);
+}
+
+function meta::pure::dsl::dataframe::recursiveCte(name: String[1], columns: String[*], query: DataFrame[1]): CommonTableExpression[1]
+{
+   ^CommonTableExpression(name = $name, columns = $columns, query = $query, isRecursive = true);
 }

@@ -24,6 +24,8 @@ import meta::pure::dsl::duckdb::*;
 // Main function to generate DuckDB SQL from a DataFrame
 function meta::pure::dsl::duckdb::generateDuckDBSQL(df: DataFrame[1]): String[1]
 {
+   let withClause = $df->generateWithClause();
+   $withClause + 
    $df->generateSelectClause() + 
    $df->generateFromClause() + 
    $df->generateWhereClause() + 
@@ -88,6 +90,23 @@ function <<access.private>> meta::pure::dsl::duckdb::generateLimitOffsetClause(d
    let limitClause = if($df.limit->isEmpty(), '', '\nLIMIT ' + $df.limit->toOne()->toString());
    let offsetClause = if($df.offset->isEmpty(), '', '\nOFFSET ' + $df.offset->toOne()->toString());
    $limitClause + $offsetClause;
+}
+
+// Generate the WITH clause
+function <<access.private>> meta::pure::dsl::duckdb::generateWithClause(df: DataFrame[1]): String[1]
+{
+   if($df.ctes->isEmpty(), 
+      '', 
+      'WITH ' + $df.ctes->map(cte | 
+         if($cte.isRecursive, 
+            'RECURSIVE ', 
+            '') + 
+         $cte.name + if($cte.columns->isEmpty(), '', '(' + $cte.columns->joinStrings(', ') + ')') + ' AS (' + 
+         if($cte.query->instanceOf(DataFrame), 
+            meta::pure::dsl::duckdb::generateDuckDBSQL($cte.query->cast(@DataFrame)), 
+            $cte.query->cast(@String)) + 
+         ')'
+      )->joinStrings(',\n') + '\n')
 }
 
 // Generate SQL for a data source

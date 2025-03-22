@@ -16,6 +16,7 @@ import meta::pure::dsl::dataframe::*;
 import meta::pure::dsl::dataframe::metamodel::*;
 import meta::pure::dsl::snowflake::*;
 import meta::pure::dsl::duckdb::*;
+import meta::pure::dsl::bigquery::*;
 import meta::pure::dsl::tests::*;
 
 /**
@@ -401,4 +402,52 @@ function <<access.private>> meta::pure::dsl::tests::assertEquals(expected: Strin
    {
       true;
    }
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testCommonTableExpressions(): Boolean[1]
+{
+   // Create a CTE for customer data
+   let customerCte = cte('customers',
+      select([
+         as(col('id'), 'id'),
+         as(col('name'), 'name')
+      ])
+      ->from(table('customer_data'))
+   );
+   
+   // Create a CTE for order data
+   let orderCte = cte('orders',
+      select([
+         as(col('id'), 'id'),
+         as(col('customer_id'), 'customer_id'),
+         as(col('amount'), 'amount')
+      ])
+      ->from(table('order_data'))
+   );
+   
+   // Create a main query using the CTEs
+   let df = select([
+      as(col('c', 'name'), 'customer_name'),
+      as(sum(col('o', 'amount')), 'total_orders')
+   ])
+   ->from(join(
+      table('customers', 'c'),
+      table('orders', 'o'),
+      JoinType.INNER,
+      eq(col('c', 'id'), col('o', 'customer_id'))
+   ))
+   ->groupBy([col('c', 'name')])
+   ->with([$customerCte, $orderCte]);
+   
+   // Generate SQL for all three database types
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   
+   // Add assertions to verify SQL output contains WITH clause for each database
+   assert($snowflakeSQL->contains('WITH '));
+   assert($duckdbSQL->contains('WITH '));
+   assert($bigquerySQL->contains('WITH '));
+   
+   true;
 }

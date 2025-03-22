@@ -749,6 +749,7 @@ function meta::pure::dsl::dataframe::desc(expr: Expression[1]): OrderByClause[1]
 }
 
 // Window function helper functions
+// Original over function for backward compatibility
 function meta::pure::dsl::dataframe::over(expr: Expression[1], window: Window[1]): WindowFunction[1]
 {
    let functionName = $expr->getFunctionName();
@@ -792,6 +793,65 @@ function meta::pure::dsl::dataframe::over(expr: Expression[1], window: Window[1]
    }
 }
 
+// Adapter function for window functions
+function meta::pure::dsl::dataframe::over(expr: Expression[1], window: _Window<Any>[1]): WindowFunction[1]
+{
+   // Convert _Window to Window
+   let w = ^Window(
+      partitionBy = $window.partition->map(p | col($p)),
+      orderBy = $window.sortInfo->map(s | ^OrderByClause(
+         expression = col($s.column), 
+         direction = $s.direction == meta::pure::dsl::dataframe::metamodel::window::SortDirection.ASC ? 
+                     meta::pure::dsl::dataframe::metamodel::SortDirection.ASC : 
+                     meta::pure::dsl::dataframe::metamodel::SortDirection.DESC
+      ))
+   );
+   
+   // Apply frame if present
+   let framedWindow = if($window.frame->isEmpty(), 
+      | $w, 
+      | if($window.frame->toOne()->instanceOf(Rows),
+          | rowsBetween($w, 
+               toWindowFrameBound($window.frame->toOne().offsetFrom), 
+               toWindowFrameBound($window.frame->toOne().offsetTo)),
+          | rangeBetween($w, 
+               toWindowFrameBound($window.frame->toOne().offsetFrom), 
+               toWindowFrameBound($window.frame->toOne().offsetTo))
+        )
+   );
+   
+   over($expr, $framedWindow);
+}
+
+function meta::pure::dsl::dataframe::toWindowFrameBound(frameValue: FrameValue[1]): WindowFrameBound[1]
+{
+   if($frameValue->instanceOf(UnboundedFrameValue),
+      | unboundedPreceding(),
+      | if($frameValue->instanceOf(FrameIntValue),
+           | let value = $frameValue->cast(@FrameIntValue).value;
+             if($value == 0,
+                | currentRow(),
+                | if($value > 0,
+                     | following($value),
+                     | preceding($value * -1)
+                  )
+             );,
+           | unboundedPreceding() // Default case
+        )
+   );
+}
+
+// SortInfo helper functions
+function meta::pure::dsl::dataframe::asc<T>(col: ColSpec<T>[1]): SortInfo<T>[1]
+{
+   ^SortInfo<T>(column = $col.name, direction = meta::pure::dsl::dataframe::metamodel::window::SortDirection.ASC);
+}
+
+function meta::pure::dsl::dataframe::desc<T>(col: ColSpec<T>[1]): SortInfo<T>[1]
+{
+   ^SortInfo<T>(column = $col.name, direction = meta::pure::dsl::dataframe::metamodel::window::SortDirection.DESC);
+}
+
 function meta::pure::dsl::dataframe::getFunctionName(expr: Expression[1]): String[1]
 {
    if($expr->instanceOf(FunctionExpression),
@@ -807,36 +867,84 @@ function meta::pure::dsl::dataframe::getFunctionParameters(expr: Expression[1]):
 }
 
 // Type-safe over functions for window operations
-function meta::pure::dsl::dataframe::over<T>(cols: ColSpecArray<T>[1]): WindowSpec[1]
+function 
+   <<functionType.NormalizeRequiredFunction,
+   PCT.function>>
+   meta::pure::dsl::dataframe::over<T>(cols: String[*], sortInfo: SortInfo<(?:?)⊆T>[*], frame: Frame[0..1]): _Window<T>[1]
 {
-   ^WindowSpec(
-      partitionBy = $cols.names,
-      orderBy = []
+   ^_Window<T>(
+      partition = $cols,
+      sortInfo = $sortInfo,
+      frame = $frame
    );
 }
 
-function meta::pure::dsl::dataframe::over<T>(col: ColSpec<T>[1]): WindowSpec[1]
+function 
+   <<functionType.NormalizeRequiredFunction,
+   PCT.function>>
+   meta::pure::dsl::dataframe::over<T>(cols: ColSpec<(?:?)⊆T>[1]): _Window<T>[1]
 {
-   ^WindowSpec(
-      partitionBy = [$col.name],
-      orderBy = []
+   ^_Window<T>(
+      partition = [$cols.name]
    );
 }
 
-function meta::pure::dsl::dataframe::over<T, Z>(cols: ColSpecArray<T>[1], orderByCols: ColSpecArray<Z>[1]): WindowSpec[1]
+function 
+   <<functionType.NormalizeRequiredFunction,
+   PCT.function>>
+   meta::pure::dsl::dataframe::over<T>(cols: ColSpecArray<(?:?)⊆T>[1]): _Window<T>[1]
 {
-   ^WindowSpec(
-      partitionBy = $cols.names,
-      orderBy = $orderByCols.names
+   ^_Window<T>(
+      partition = $cols.names
    );
 }
 
-function meta::pure::dsl::dataframe::over<T, Z>(col: ColSpec<T>[1], orderByCol: ColSpec<Z>[1]): WindowSpec[1]
+function 
+   <<functionType.NormalizeRequiredFunction,
+   PCT.function>>
+   meta::pure::dsl::dataframe::over<T>(sortInfo: SortInfo<(?:?)⊆T>[*]): _Window<T>[1]
 {
-   ^WindowSpec(
-      partitionBy = [$col.name],
-      orderBy = [$orderByCol.name]
-   );
+   over([], $sortInfo, []);
+}
+
+function 
+   <<functionType.NormalizeRequiredFunction,
+   PCT.function>>
+   meta::pure::dsl::dataframe::over<T>(frame: Frame[1]): _Window<T>[1]
+{
+   over([], [], $frame);
+}
+
+function 
+   <<functionType.NormalizeRequiredFunction,
+   PCT.function>>
+   meta::pure::dsl::dataframe::over<T>(cols: ColSpec<(?:?)⊆T>[1], sortInfo: SortInfo<(?:?)⊆T>[*]): _Window<T>[1]
+{
+   over([$cols.name], $sortInfo, []);
+}
+
+function 
+   <<functionType.NormalizeRequiredFunction,
+   PCT.function>>
+   meta::pure::dsl::dataframe::over<T>(cols: ColSpecArray<(?:?)⊆T>[1], sortInfo: SortInfo<(?:?)⊆T>[*]): _Window<T>[1]
+{
+   over($cols.names, $sortInfo, []);
+}
+
+function 
+   <<functionType.NormalizeRequiredFunction,
+   PCT.function>>
+   meta::pure::dsl::dataframe::over<T>(cols: ColSpec<(?:?)⊆T>[1], frame: Frame[1]): _Window<T>[1]
+{
+   over([$cols.name], [], $frame);
+}
+
+function 
+   <<functionType.NormalizeRequiredFunction,
+   PCT.function>>
+   meta::pure::dsl::dataframe::over<T>(sortInfo: SortInfo<(?:?)⊆T>[*], frame: Frame[1]): _Window<T>[1]
+{
+   over([], $sortInfo, $frame);
 }
 
 function meta::pure::dsl::dataframe::partitionBy(columns: Expression[*]): Window[1]

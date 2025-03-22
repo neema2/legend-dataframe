@@ -307,6 +307,55 @@ function <<access.private>> meta::pure::dsl::duckdb::generateSQLFromWindowSpec(w
    $partitionBy + $orderBy;
 }
 
+// Add handling for _Window
+function meta::pure::dsl::duckdb::generateWindowSpecSQL(windowSpec: _Window<Any>[1]): String[1]
+{
+   let partitionBy = if($windowSpec.partition->isEmpty(), 
+                     '', 
+                     'PARTITION BY ' + $windowSpec.partition->joinStrings(', '));
+   
+   let orderBy = if($windowSpec.sortInfo->isEmpty(), 
+                 '', 
+                 if($partitionBy->isEmpty(), '', ' ') + 
+                 'ORDER BY ' + $windowSpec.sortInfo->map(s | $s.column + 
+                     if($s.direction == meta::pure::dsl::dataframe::metamodel::window::SortDirection.ASC, '', ' DESC'))->joinStrings(', '));
+   
+   let frame = if($windowSpec.frame->isEmpty(), 
+               '', 
+               if($partitionBy->isEmpty() && $orderBy->isEmpty(), '', ' ') + 
+               generateFrameSQL($windowSpec.frame->toOne()));
+   
+   $partitionBy + $orderBy + $frame;
+}
+
+function meta::pure::dsl::duckdb::generateFrameSQL(frame: Frame[1]): String[1]
+{
+   let frameType = if($frame->instanceOf(Rows), 'ROWS', 'RANGE');
+   
+   let start = generateFrameValueSQL($frame.offsetFrom);
+   let end = generateFrameValueSQL($frame.offsetTo);
+   
+   $frameType + ' BETWEEN ' + $start + ' AND ' + $end;
+}
+
+function meta::pure::dsl::duckdb::generateFrameValueSQL(frameValue: FrameValue[1]): String[1]
+{
+   if($frameValue->instanceOf(UnboundedFrameValue),
+      | 'UNBOUNDED PRECEDING',
+      | if($frameValue->instanceOf(FrameIntValue),
+           | let value = $frameValue->cast(@FrameIntValue).value;
+             if($value == 0,
+                | 'CURRENT ROW',
+                | if($value > 0,
+                     | $value->toString() + ' FOLLOWING',
+                     | ($value * -1)->toString() + ' PRECEDING'
+                  )
+             );,
+           | 'UNBOUNDED PRECEDING' // Default case
+        )
+   );
+}
+
 // Handle inline TDS in DuckDB SQL generation
 function meta::pure::dsl::duckdb::handleInlineTDS(df: DataFrame[1]): String[1]
 {

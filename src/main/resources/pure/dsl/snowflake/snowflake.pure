@@ -22,21 +22,34 @@ import meta::pure::dsl::snowflake::*;
  * This module provides functions to convert DataFrame objects to Snowflake SQL syntax
  */
 
+// Helper function to expose feature map for testing
+function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeSQL_featureMap(): Map<String, Boolean>[1]
+{
+   meta::pure::dsl::dataframe::createFeatureSupportMap(
+      meta::pure::dsl::dataframe::standardFeatureList()->map(f| 
+         if($f.first == 'PIVOT' || $f.first == 'UNPIVOT' || $f.first == 'MATCH_RECOGNIZE' || 
+            $f.first == 'LATERAL_JOIN' || $f.first == 'AT' || $f.first == 'CHANGES' || 
+            $f.first == 'CONNECT_BY' || $f.first == 'SAMPLE' || $f.first == 'QUALIFY',
+            pair($f.first, true),
+            $f)
+      )
+   );
+}
+
 // Main function to generate Snowflake SQL from a DataFrame
 function meta::pure::dsl::snowflake::generateSnowflakeSQL(df: DataFrame[1]): String[1]
 {
+
    // Snowflake supports all features - use standardized feature support map
-   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap([
-      pair('PIVOT', true),
-      pair('UNPIVOT', true),
-      pair('MATCH_RECOGNIZE', true),
-      pair('LATERAL_JOIN', true),
-      pair('AT', true),
-      pair('CHANGES', true),
-      pair('CONNECT_BY', true),
-      pair('SAMPLE', true),
-      pair('QUALIFY', true)
-   ]);
+   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap(
+      meta::pure::dsl::dataframe::standardFeatureList()->map(f| 
+         if($f.first == 'PIVOT' || $f.first == 'UNPIVOT' || $f.first == 'MATCH_RECOGNIZE' || 
+            $f.first == 'LATERAL_JOIN' || $f.first == 'AT' || $f.first == 'CHANGES' || 
+            $f.first == 'CONNECT_BY' || $f.first == 'SAMPLE' || $f.first == 'QUALIFY',
+            pair($f.first, true),
+            $f)
+      )
+   );
    
    // No errors should be thrown since all features are supported
    meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'Snowflake', $supportedFeatures);

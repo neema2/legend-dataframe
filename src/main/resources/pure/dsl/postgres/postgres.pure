@@ -22,21 +22,29 @@ import meta::pure::dsl::postgres::*;
  * This module provides functions to convert DataFrame objects to PostgreSQL SQL syntax
  */
 
+// Helper function to expose feature map for testing
+function <<access.private>> meta::pure::dsl::postgres::generatePostgresSQL_featureMap(): Map<String, Boolean>[1]
+{
+   meta::pure::dsl::dataframe::createFeatureSupportMap(
+      meta::pure::dsl::dataframe::standardFeatureList()->map(f| 
+         if($f.first == 'LATERAL_JOIN',
+            pair($f.first, true),
+            $f)
+      )
+   );
+}
+
 // Main function to generate PostgreSQL SQL from a DataFrame
 function meta::pure::dsl::postgres::generatePostgresSQL(df: DataFrame[1]): String[1]
 {
    // Define feature support for PostgreSQL
-   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap([
-      pair('PIVOT', false),
-      pair('UNPIVOT', false),
-      pair('MATCH_RECOGNIZE', false),
-      pair('LATERAL_JOIN', true),
-      pair('AT', false),
-      pair('CHANGES', false),
-      pair('CONNECT_BY', false),
-      pair('SAMPLE', false),
-      pair('QUALIFY', false)
-   ]);
+   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap(
+      meta::pure::dsl::dataframe::standardFeatureList()->map(f| 
+         if($f.first == 'LATERAL_JOIN',
+            pair($f.first, true),
+            $f)
+      )
+   );
    
    meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'PostgreSQL', $supportedFeatures);
    

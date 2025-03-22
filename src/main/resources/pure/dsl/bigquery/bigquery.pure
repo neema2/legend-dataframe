@@ -17,26 +17,34 @@ import meta::pure::dsl::dataframe::metamodel::*;
 import meta::pure::dsl::dataframe::metamodel::column::*;
 
 // Main function to generate BigQuery SQL from a DataFrame
+// Helper function to expose feature map for testing
+function <<access.private>> meta::pure::dsl::bigquery::generateBigQuerySQL_featureMap(): Map<String, Boolean>[1]
+{
+   meta::pure::dsl::dataframe::createFeatureSupportMap(
+      meta::pure::dsl::dataframe::standardFeatureList()->map(f| 
+         if($f.first == 'PIVOT' || $f.first == 'UNPIVOT' || $f.first == 'LATERAL_JOIN' || 
+            $f.first == 'QUALIFY' || $f.first == 'STRUCT' || $f.first == 'VALUE' || 
+            $f.first == 'EXCEPT' || $f.first == 'REPLACE' || $f.first == 'DIFFERENTIAL_PRIVACY' || 
+            $f.first == 'AGGREGATION_THRESHOLD',
+            pair($f.first, true),
+            $f)
+      )
+   );
+}
+
 function meta::pure::dsl::bigquery::generateBigQuerySQL(df: DataFrame[1]): String[1]
 {
    // Check for unsupported features using standardized error handling
-   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap([
-      pair('PIVOT', true),
-      pair('UNPIVOT', true),
-      pair('MATCH_RECOGNIZE', false),
-      pair('LATERAL_JOIN', true),
-      pair('AT', false),
-      pair('CHANGES', false),
-      pair('CONNECT_BY', false),
-      pair('SAMPLE', false),
-      pair('QUALIFY', true),
-      pair('STRUCT', true),
-      pair('VALUE', true),
-      pair('EXCEPT', true),
-      pair('REPLACE', true),
-      pair('DIFFERENTIAL_PRIVACY', true),
-      pair('AGGREGATION_THRESHOLD', true)
-   ]);
+   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap(
+      meta::pure::dsl::dataframe::standardFeatureList()->map(f| 
+         if($f.first == 'PIVOT' || $f.first == 'UNPIVOT' || $f.first == 'LATERAL_JOIN' || 
+            $f.first == 'QUALIFY' || $f.first == 'STRUCT' || $f.first == 'VALUE' || 
+            $f.first == 'EXCEPT' || $f.first == 'REPLACE' || $f.first == 'DIFFERENTIAL_PRIVACY' || 
+            $f.first == 'AGGREGATION_THRESHOLD',
+            pair($f.first, true),
+            $f)
+      )
+   );
    
    meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'BigQuery', $supportedFeatures);
    

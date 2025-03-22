@@ -22,21 +22,29 @@ import meta::pure::dsl::duckdb::*;
  * This module provides functions to convert DataFrame objects to DuckDB SQL syntax
  */
 
+// Helper function to expose feature map for testing
+function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBSQL_featureMap(): Map<String, Boolean>[1]
+{
+   meta::pure::dsl::dataframe::createFeatureSupportMap(
+      meta::pure::dsl::dataframe::standardFeatureList()->map(f| 
+         if($f.first == 'SAMPLE' || $f.first == 'QUALIFY',
+            pair($f.first, true),
+            $f)
+      )
+   );
+}
+
 // Main function to generate DuckDB SQL from a DataFrame
 function meta::pure::dsl::duckdb::generateDuckDBSQL(df: DataFrame[1]): String[1]
 {
    // Check for unsupported features using standardized error handling
-   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap([
-      pair('PIVOT', false),
-      pair('UNPIVOT', false),
-      pair('MATCH_RECOGNIZE', false),
-      pair('LATERAL_JOIN', false),
-      pair('AT', false),
-      pair('CHANGES', false),
-      pair('CONNECT_BY', false),
-      pair('SAMPLE', true),
-      pair('QUALIFY', true)
-   ]);
+   let supportedFeatures = meta::pure::dsl::dataframe::createFeatureSupportMap(
+      meta::pure::dsl::dataframe::standardFeatureList()->map(f| 
+         if($f.first == 'SAMPLE' || $f.first == 'QUALIFY',
+            pair($f.first, true),
+            $f)
+      )
+   );
    
    meta::pure::dsl::dataframe::checkUnsupportedFeatures($df, 'DuckDB', $supportedFeatures);
    

@@ -14,6 +14,7 @@
 
 import meta::pure::dsl::dataframe::*;
 import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::column::*;
 
 /**
  * Core DataFrame DSL for modeling SQL SELECT statements
@@ -181,6 +182,52 @@ Enum meta::pure::dsl::dataframe::metamodel::SortDirection
    DESC
 }
 
+// Tilde notation functions for column references
+function meta::pure::dsl::dataframe::~(name:String[1]):ColSpec<Any>[1]
+{
+    ^ColSpec<Any>(name=$name);
+}
+
+function meta::pure::dsl::dataframe::~(names:String[*]):ColSpecArray<Any>[1]
+{
+    ^ColSpecArray<Any>(names=$names);
+}
+
+// Table-aware tilde notation for single column reference
+function meta::pure::dsl::dataframe::~<T>(schema: TableSchema<T>[1], name: String[1]): ColSpec<T>[1]
+{
+   // Validate column exists in schema
+   if($schema.columns->containsKey($name),
+      ^ColSpec<T>(name = $name, tableSchema = $schema),
+      error('Column "' + $name + '" not found in table schema "' + $schema.name + '"')
+   );
+}
+
+// Tilde notation for quoted column names (with spaces)
+function meta::pure::dsl::dataframe::~<T>(schema: TableSchema<T>[1], name: String[1], quoted: Boolean[1]): ColSpec<T>[1]
+{
+   if($quoted, 
+      // For quoted names, we don't need to look up directly
+      ^ColSpec<T>(name = $name, tableSchema = $schema),
+      // For unquoted names, validate it exists
+      if($schema.columns->containsKey($name),
+         ^ColSpec<T>(name = $name, tableSchema = $schema),
+         error('Column "' + $name + '" not found in table schema "' + $schema.name + '"')
+      )
+   );
+}
+
+// Tilde notation for multiple column references
+function meta::pure::dsl::dataframe::~<T>(schema: TableSchema<T>[1], names: String[*]): ColSpecArray<T>[1]
+{
+   // Validate all columns exist in schema
+   let invalidColumns = $names->filter(n | !$schema.columns->containsKey($n));
+   if($invalidColumns->isEmpty(),
+      ^ColSpecArray<T>(names = $names, tableSchema = $schema),
+      error('Columns [' + $invalidColumns->joinStrings(', ') + '] not found in table schema "' + $schema.name + '"')
+   );
+}
+
 // Aggregate functions
 Class meta::pure::dsl::dataframe::metamodel::AggregateFunction extends FunctionExpression
 {
@@ -279,9 +326,43 @@ function meta::pure::dsl::dataframe::newDataFrame(): DataFrame[1]
    ^DataFrame(columns = [], distinct = false)
 }
 
+// Type-safe select functions
+function meta::pure::dsl::dataframe::select<T>(cols: ColSpecArray<T>[1]): DataFrame[1]
+{
+   // Create columns from ColSpecArray
+   let columns = $cols.names->map(n | ^Column(name = $n, expression = ^ColumnReference(columnName = $n), alias = $n));
+   
+   ^DataFrame(columns = $columns, distinct = false);
+}
+
+function meta::pure::dsl::dataframe::select<T>(col: ColSpec<T>[1]): DataFrame[1]
+{
+   // Create column from ColSpec
+   let column = ^Column(name = $col.name, expression = ^ColumnReference(columnName = $col.name), alias = $col.name);
+   
+   ^DataFrame(columns = [$column], distinct = false);
+}
+
 function meta::pure::dsl::dataframe::select(columns: Column[*]): DataFrame[1]
 {
    ^DataFrame(columns = $columns, distinct = false)
+}
+
+// Type-safe selectDistinct functions
+function meta::pure::dsl::dataframe::selectDistinct<T>(cols: ColSpecArray<T>[1]): DataFrame[1]
+{
+   // Create columns from ColSpecArray
+   let columns = $cols.names->map(n | ^Column(name = $n, expression = ^ColumnReference(columnName = $n), alias = $n));
+   
+   ^DataFrame(columns = $columns, distinct = true);
+}
+
+function meta::pure::dsl::dataframe::selectDistinct<T>(col: ColSpec<T>[1]): DataFrame[1]
+{
+   // Create column from ColSpec
+   let column = ^Column(name = $col.name, expression = ^ColumnReference(columnName = $col.name), alias = $col.name);
+   
+   ^DataFrame(columns = [$column], distinct = true);
 }
 
 function meta::pure::dsl::dataframe::selectDistinct(columns: Column[*]): DataFrame[1]
@@ -294,9 +375,55 @@ function meta::pure::dsl::dataframe::from(df: DataFrame[1], source: DataSource[1
    ^$df(source = $source)
 }
 
+// Type-safe filter function
+function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], condition: Function<{T[1]->Boolean[1]}>[1]): DataFrame[1]
+{
+   ^$df(filter = $condition)
+}
+
+// Type-safe filter function with table schema validation
+function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], tableSchema: TableSchema<T>[1], condition: Function<{T[1]->Boolean[1]}>[1]): DataFrame[1]
+{
+   // Validate condition against table schema
+   ^$df(filter = $condition)
+}
+
 function meta::pure::dsl::dataframe::where(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
 {
    ^$df(filter = $condition)
+}
+
+// Type-safe groupBy functions
+function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
+{
+   // Create column references from ColSpecArray
+   let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+   
+   ^$df(groupBy = ^GroupByClause(columns = $colRefs));
+}
+
+function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
+{
+   // Create column reference
+   let colRef = ^ColumnReference(columnName = $col.name);
+   
+   ^$df(groupBy = ^GroupByClause(columns = [$colRef]));
+}
+
+// Type-safe groupBy function with table schema validation
+function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], tableSchema: TableSchema<T>[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
+{
+   // Validate columns against table schema
+   let invalidColumns = $cols.names->filter(n | !$tableSchema.columns->containsKey($n));
+   if($invalidColumns->isEmpty(),
+      {
+         // Create column references from ColSpecArray
+         let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+         
+         ^$df(groupBy = ^GroupByClause(columns = $colRefs));
+      },
+      error('Columns [' + $invalidColumns->joinStrings(', ') + '] not found in table schema "' + $tableSchema.name + '"')
+   );
 }
 
 function meta::pure::dsl::dataframe::groupBy(df: DataFrame[1], columns: Expression[*]): DataFrame[1]
@@ -307,6 +434,45 @@ function meta::pure::dsl::dataframe::groupBy(df: DataFrame[1], columns: Expressi
 function meta::pure::dsl::dataframe::having(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
 {
    ^$df(having = $condition)
+}
+
+// Type-safe orderBy functions
+function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1], desc: Boolean[0..1]): DataFrame[1]
+{
+   let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
+   let clauses = $cols.names->map(n | ^OrderByClause(
+      expression = ^ColumnReference(columnName = $n),
+      direction = $direction
+   ));
+   ^$df(orderBy = $clauses);
+}
+
+function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1], desc: Boolean[0..1]): DataFrame[1]
+{
+   let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
+   let clause = ^OrderByClause(
+      expression = ^ColumnReference(columnName = $col.name),
+      direction = $direction
+   );
+   ^$df(orderBy = [$clause]);
+}
+
+// Type-safe orderBy function with table schema validation
+function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], tableSchema: TableSchema<T>[1], cols: ColSpecArray<Z>[1], desc: Boolean[0..1]): DataFrame[1]
+{
+   // Validate columns against table schema
+   let invalidColumns = $cols.names->filter(n | !$tableSchema.columns->containsKey($n));
+   if($invalidColumns->isEmpty(),
+      {
+         let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
+         let clauses = $cols.names->map(n | ^OrderByClause(
+            expression = ^ColumnReference(columnName = $n),
+            direction = $direction
+         ));
+         ^$df(orderBy = $clauses);
+      },
+      error('Columns [' + $invalidColumns->joinStrings(', ') + '] not found in table schema "' + $tableSchema.name + '"')
+   );
 }
 
 function meta::pure::dsl::dataframe::orderBy(df: DataFrame[1], clauses: OrderByClause[*]): DataFrame[1]
@@ -427,6 +593,46 @@ function meta::pure::dsl::dataframe::tableAs(schema: String[1], name: String[1],
    ^TableReference(tableName = $name, schema = $schema, alias = $alias)
 }
 
+// Define a table with schema
+function meta::pure::dsl::dataframe::tableWithSchema<T>(name: String[1], schema: TableSchema<T>[1]): TableReference[1]
+{
+   ^TableReference(tableName = $name, tableSchema = $schema);
+}
+
+// Define a table with schema and alias
+function meta::pure::dsl::dataframe::tableWithSchemaAs<T>(name: String[1], schema: TableSchema<T>[1], alias: String[1]): TableReference[1]
+{
+   ^TableReference(tableName = $name, tableSchema = $schema, alias = $alias);
+}
+
+// Type-safe join functions
+function meta::pure::dsl::dataframe::join<T, V>(left: DataFrame[1], right: DataFrame[1], joinType: JoinType[1], condition: Function<{T[1], V[1]->Boolean[1]}>[1]): DataFrame[1]
+{
+   ^DataFrame(
+      source = ^JoinOperation(
+         left = $left.source, 
+         right = $right.source, 
+         joinType = $joinType, 
+         condition = $condition
+      ),
+      columns = $left.columns->concatenate($right.columns)
+   );
+}
+
+// Type-safe join with table schemas
+function meta::pure::dsl::dataframe::join<T, V>(left: DataFrame[1], leftSchema: TableSchema<T>[1], right: DataFrame[1], rightSchema: TableSchema<V>[1], joinType: JoinType[1], condition: Function<{T[1], V[1]->Boolean[1]}>[1]): DataFrame[1]
+{
+   ^DataFrame(
+      source = ^JoinOperation(
+         left = $left.source, 
+         right = $right.source, 
+         joinType = $joinType, 
+         condition = $condition
+      ),
+      columns = $left.columns->concatenate($right.columns)
+   );
+}
+
 function meta::pure::dsl::dataframe::join(left: DataSource[1], right: DataSource[1], condition: FilterCondition[1]): JoinOperation[1]
 {
    ^JoinOperation(left = $left, right = $right, joinType = JoinType.INNER, condition = $condition)
@@ -463,6 +669,53 @@ function meta::pure::dsl::dataframe::countDistinct(expr: Expression[1]): CountFu
    ^CountFunction(functionName = 'count', parameters = [$expr], distinct = true)
 }
 
+// Type-safe aggregate functions
+function meta::pure::dsl::dataframe::sum<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>[1]
+{
+   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>(
+      name = 'sum_' + $col.name,
+      keyFunc = {x:T[1] | $x->get($col.name)},
+      valueFunc = {values:Any[*] | $values->sum()}
+   );
+}
+
+function meta::pure::dsl::dataframe::avg<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>[1]
+{
+   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>(
+      name = 'avg_' + $col.name,
+      keyFunc = {x:T[1] | $x->get($col.name)},
+      valueFunc = {values:Any[*] | $values->average()}
+   );
+}
+
+function meta::pure::dsl::dataframe::min<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>[1]
+{
+   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>(
+      name = 'min_' + $col.name,
+      keyFunc = {x:T[1] | $x->get($col.name)},
+      valueFunc = {values:Any[*] | $values->min()}
+   );
+}
+
+function meta::pure::dsl::dataframe::max<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>[1]
+{
+   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>(
+      name = 'max_' + $col.name,
+      keyFunc = {x:T[1] | $x->get($col.name)},
+      valueFunc = {values:Any[*] | $values->max()}
+   );
+}
+
+function meta::pure::dsl::dataframe::count<T>(col: ColSpec<T>[1]): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Integer[0..1]},Any>[1]
+{
+   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Integer[0..1]},Any>(
+      name = 'count_' + $col.name,
+      keyFunc = {x:T[1] | $x->get($col.name)},
+      valueFunc = {values:Any[*] | $values->size()}
+   );
+}
+
+// Legacy functions for backward compatibility
 function meta::pure::dsl::dataframe::sum(expr: Expression[1]): SumFunction[1]
 {
    ^SumFunction(functionName = 'sum', parameters = [$expr])
@@ -550,6 +803,39 @@ function meta::pure::dsl::dataframe::getFunctionParameters(expr: Expression[1]):
    if($expr->instanceOf(FunctionExpression),
       |$expr->cast(@FunctionExpression).parameters,
       |[]);
+}
+
+// Type-safe over functions for window operations
+function meta::pure::dsl::dataframe::over<T>(cols: ColSpecArray<T>[1]): WindowSpec[1]
+{
+   ^WindowSpec(
+      partitionBy = $cols.names,
+      orderBy = []
+   );
+}
+
+function meta::pure::dsl::dataframe::over<T>(col: ColSpec<T>[1]): WindowSpec[1]
+{
+   ^WindowSpec(
+      partitionBy = [$col.name],
+      orderBy = []
+   );
+}
+
+function meta::pure::dsl::dataframe::over<T, Z>(cols: ColSpecArray<T>[1], orderByCols: ColSpecArray<Z>[1]): WindowSpec[1]
+{
+   ^WindowSpec(
+      partitionBy = $cols.names,
+      orderBy = $orderByCols.names
+   );
+}
+
+function meta::pure::dsl::dataframe::over<T, Z>(col: ColSpec<T>[1], orderByCol: ColSpec<Z>[1]): WindowSpec[1]
+{
+   ^WindowSpec(
+      partitionBy = [$col.name],
+      orderBy = [$orderByCol.name]
+   );
 }
 
 function meta::pure::dsl::dataframe::partitionBy(columns: Expression[*]): Window[1]

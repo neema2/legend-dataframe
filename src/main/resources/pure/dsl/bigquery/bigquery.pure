@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::column::*;
 
 // Main function to generate BigQuery SQL from a DataFrame
 function meta::pure::dsl::bigquery::generateBigQuerySQL(df: DataFrame[1]): String[1]

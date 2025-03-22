@@ -1,0 +1,67 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::column::*;
+
+/**
+ * Type-safe column specifications for DataFrame DSL
+ */
+
+// Table schema for type-safe operations
+Class meta::pure::dsl::dataframe::metamodel::TableSchema<T>
+{
+   name: String[1];
+   columns: Map<String, Type>[1];
+}
+
+// Column specification types for type-safe operations
+Class meta::pure::dsl::dataframe::metamodel::column::ColSpec<T>
+{
+   name: String[1];
+   tableSchema: TableSchema<T>[0..1];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::column::ColSpecArray<T>
+{
+   names: String[*];
+   tableSchema: TableSchema<T>[0..1];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::column::FuncColSpec<F, Z>
+{
+   name: String[1];
+   func: F[1];
+}
+
+Class meta::pure::dsl::dataframe::metamodel::column::FuncColSpecArray<F, Z>
+{
+   specs: FuncColSpec<F, Z>[*];
+}
+
+// For aggregation functions
+Class meta::pure::dsl::dataframe::metamodel::column::AggColSpec<K, V, R>
+{
+   name: String[1];
+   keyFunc: K[1];
+   valueFunc: V[1];
+}
+
+// Window specification for window functions
+Class meta::pure::dsl::dataframe::metamodel::column::WindowSpec
+{
+   partitionBy: String[*];
+   orderBy: String[*];
+}

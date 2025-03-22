@@ -1,0 +1,358 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::column::*;
+import meta::pure::dsl::snowflake::*;
+import meta::pure::dsl::duckdb::*;
+import meta::pure::dsl::bigquery::*;
+
+/**
+ * Tests for type-safe features in the DataFrame DSL
+ */
+
+// Test basic tilde notation for column references
+function <<test.Test>> meta::pure::dsl::tests::testTypeSafeColSpec(): Boolean[1]
+{
+   // Test ColSpec creation with tilde notation
+   let col = ~'column1';
+   assertEquals('column1', $col.name);
+   
+   // Test ColSpecArray creation with tilde notation
+   let cols = ~['col1', 'col2', 'col3'];
+   assertEquals('col1, col2, col3', $cols.names->joinStrings(', '));
+   
+   true;
+}
+
+// Test type-safe aggregate functions
+function <<test.Test>> meta::pure::dsl::tests::testTypeSafeAggregateFunctions(): Boolean[1]
+{
+   // Test type-safe aggregate functions
+   let sumCol = sum(~'value');
+   assertEquals('sum_value', $sumCol.name);
+   
+   let avgCol = avg(~'price');
+   assertEquals('avg_price', $avgCol.name);
+   
+   let minCol = min(~'score');
+   assertEquals('min_score', $minCol.name);
+   
+   let maxCol = max(~'rating');
+   assertEquals('max_rating', $maxCol.name);
+   
+   let countCol = count(~'id');
+   assertEquals('count_id', $countCol.name);
+   
+   true;
+}
+
+// Test window specifications with tilde notation
+function <<test.Test>> meta::pure::dsl::tests::testTypeSafeWindowSpec(): Boolean[1]
+{
+   // Test window specification with tilde notation
+   let windowSpec1 = over(~'department');
+   assertEquals('department', $windowSpec1.partitionBy->joinStrings(', '));
+   assertEquals('', $windowSpec1.orderBy->joinStrings(', '));
+   
+   let windowSpec2 = over(~['region', 'department']);
+   assertEquals('region, department', $windowSpec2.partitionBy->joinStrings(', '));
+   assertEquals('', $windowSpec2.orderBy->joinStrings(', '));
+   
+   let windowSpec3 = over(~'department', ~'salary');
+   assertEquals('department', $windowSpec3.partitionBy->joinStrings(', '));
+   assertEquals('salary', $windowSpec3.orderBy->joinStrings(', '));
+   
+   let windowSpec4 = over(~['region', 'department'], ~['date', 'id']);
+   assertEquals('region, department', $windowSpec4.partitionBy->joinStrings(', '));
+   assertEquals('date, id', $windowSpec4.orderBy->joinStrings(', '));
+   
+   true;
+}
+
+// Test table schema validation with column references
+function <<test.Test>> meta::pure::dsl::tests::testTableSchemaAndTypeSafeColumns(): Boolean[1]
+{
+   // Define a table schema
+   let userSchema = ^TableSchema<Any>(
+      name = 'users',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('name', String), 
+         pair('email', String),
+         pair('created_at', DateTime)
+      ])
+   );
+   
+   // Create a table with schema
+   let usersTable = tableWithSchema('users', $userSchema);
+   
+   // Test valid column references
+   let validColSpec = ~($userSchema, 'id');
+   assertEquals('id', $validColSpec.name);
+   
+   let validColSpecArray = ~($userSchema, ['id', 'name', 'email']);
+   assertEquals('id, name, email', $validColSpecArray.names->joinStrings(', '));
+   
+   // Test select with type-safe columns
+   let df = select([
+      as(~($userSchema, 'id'), 'user_id'),
+      as(~($userSchema, 'name'), 'user_name')
+   ])->from($usersTable);
+   
+   // Generate SQL for Snowflake and verify
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id AS user_id, name AS user_name\nFROM users', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB and verify
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id AS user_id, name AS user_name\nFROM users', $duckdbSQL);
+   
+   // Generate SQL for BigQuery and verify
+   let bigquerySQL = $df->generateBigQuerySQL();
+   assertEquals('SELECT id AS user_id, name AS user_name\nFROM users', $bigquerySQL);
+   
+   // Test select with array of columns
+   let dfArray = select(~($userSchema, ['id', 'name', 'email']))->from($usersTable);
+   
+   // Generate SQL for Snowflake and verify
+   let snowflakeSQLArray = $dfArray->generateSnowflakeSQL();
+   assertEquals('SELECT id, name, email\nFROM users', $snowflakeSQLArray);
+   
+   // Generate SQL for DuckDB and verify
+   let duckdbSQLArray = $dfArray->generateDuckDBSQL();
+   assertEquals('SELECT id, name, email\nFROM users', $duckdbSQLArray);
+   
+   // Generate SQL for BigQuery and verify
+   let bigquerySQLArray = $dfArray->generateBigQuerySQL();
+   assertEquals('SELECT id, name, email\nFROM users', $bigquerySQLArray);
+   
+   true;
+}
+
+// Test type-safe filter operations
+function <<test.Test>> meta::pure::dsl::tests::testTypeSafeFilter(): Boolean[1]
+{
+   // Define a table schema
+   let productSchema = ^TableSchema<Any>(
+      name = 'products',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('name', String), 
+         pair('price', Decimal),
+         pair('category', String)
+      ])
+   );
+   
+   // Create a table with schema
+   let productsTable = tableWithSchema('products', $productSchema);
+   
+   // Test filter with type-safe columns
+   let df = select(~($productSchema, ['id', 'name', 'price']))
+      ->from($productsTable)
+      ->where(eq(~($productSchema, 'category'), literal('Electronics')));
+   
+   // Generate SQL for Snowflake and verify
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id, name, price\nFROM products\nWHERE (category = \'Electronics\')', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB and verify
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id, name, price\nFROM products\nWHERE (category = \'Electronics\')', $duckdbSQL);
+   
+   // Generate SQL for BigQuery and verify
+   let bigquerySQL = $df->generateBigQuerySQL();
+   assertEquals('SELECT id, name, price\nFROM products\nWHERE (category = \'Electronics\')', $bigquerySQL);
+   
+   true;
+}
+
+// Test type-safe groupBy operations
+function <<test.Test>> meta::pure::dsl::tests::testTypeSafeGroupBy(): Boolean[1]
+{
+   // Define a table schema
+   let orderSchema = ^TableSchema<Any>(
+      name = 'orders',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('customer_id', Integer), 
+         pair('product_id', Integer),
+         pair('amount', Decimal),
+         pair('order_date', Date)
+      ])
+   );
+   
+   // Create a table with schema
+   let ordersTable = tableWithSchema('orders', $orderSchema);
+   
+   // Test groupBy with type-safe columns
+   let df = select([
+      as(~($orderSchema, 'customer_id'), 'customer'),
+      as(sum(~($orderSchema, 'amount')), 'total_amount')
+   ])
+   ->from($ordersTable)
+   ->groupBy(~($orderSchema, 'customer_id'));
+   
+   // Generate SQL for Snowflake and verify
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT customer_id AS customer, SUM(amount) AS total_amount\nFROM orders\nGROUP BY customer_id', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB and verify
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT customer_id AS customer, SUM(amount) AS total_amount\nFROM orders\nGROUP BY customer_id', $duckdbSQL);
+   
+   // Generate SQL for BigQuery and verify
+   let bigquerySQL = $df->generateBigQuerySQL();
+   assertEquals('SELECT customer_id AS customer, SUM(amount) AS total_amount\nFROM orders\nGROUP BY customer_id', $bigquerySQL);
+   
+   true;
+}
+
+// Test type-safe orderBy operations
+function <<test.Test>> meta::pure::dsl::tests::testTypeSafeOrderBy(): Boolean[1]
+{
+   // Define a table schema
+   let employeeSchema = ^TableSchema<Any>(
+      name = 'employees',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('name', String), 
+         pair('department', String),
+         pair('salary', Decimal),
+         pair('hire_date', Date)
+      ])
+   );
+   
+   // Create a table with schema
+   let employeesTable = tableWithSchema('employees', $employeeSchema);
+   
+   // Test orderBy with type-safe columns
+   let df = select(~($employeeSchema, ['id', 'name', 'department', 'salary']))
+      ->from($employeesTable)
+      ->orderBy(~($employeeSchema, 'department'), false)
+      ->orderBy(~($employeeSchema, 'salary'), true);
+   
+   // Generate SQL for Snowflake and verify
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT id, name, department, salary\nFROM employees\nORDER BY department ASC, salary DESC', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB and verify
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT id, name, department, salary\nFROM employees\nORDER BY department ASC, salary DESC', $duckdbSQL);
+   
+   // Generate SQL for BigQuery and verify
+   let bigquerySQL = $df->generateBigQuerySQL();
+   assertEquals('SELECT id, name, department, salary\nFROM employees\nORDER BY department ASC, salary DESC', $bigquerySQL);
+   
+   true;
+}
+
+// Test type-safe join operations
+function <<test.Test>> meta::pure::dsl::tests::testTypeSafeJoin(): Boolean[1]
+{
+   // Define table schemas
+   let orderSchema = ^TableSchema<Any>(
+      name = 'orders',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('customer_id', Integer), 
+         pair('amount', Decimal)
+      ])
+   );
+   
+   let customerSchema = ^TableSchema<Any>(
+      name = 'customers',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('name', String), 
+         pair('email', String)
+      ])
+   );
+   
+   // Create tables with schemas
+   let ordersTable = tableWithSchemaAs('orders', $orderSchema, 'o');
+   let customersTable = tableWithSchemaAs('customers', $customerSchema, 'c');
+   
+   // Test join with type-safe columns
+   let ordersDf = select(~($orderSchema, ['id', 'customer_id', 'amount']))->from($ordersTable);
+   let customersDf = select(~($customerSchema, ['id', 'name']))->from($customersTable);
+   
+   let joinedDf = join(
+      $ordersDf, 
+      $customersDf, 
+      JoinType.INNER, 
+      eq(col('o', 'customer_id'), col('c', 'id'))
+   );
+   
+   // Generate SQL for Snowflake and verify
+   let snowflakeSQL = $joinedDf->generateSnowflakeSQL();
+   assertEquals('SELECT o.id, o.customer_id, o.amount, c.id, c.name\nFROM orders AS o INNER JOIN customers AS c ON (o.customer_id = c.id)', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB and verify
+   let duckdbSQL = $joinedDf->generateDuckDBSQL();
+   assertEquals('SELECT o.id, o.customer_id, o.amount, c.id, c.name\nFROM orders AS o INNER JOIN customers AS c ON (o.customer_id = c.id)', $duckdbSQL);
+   
+   // Generate SQL for BigQuery and verify
+   let bigquerySQL = $joinedDf->generateBigQuerySQL();
+   assertEquals('SELECT o.id, o.customer_id, o.amount, c.id, c.name\nFROM orders AS o INNER JOIN customers AS c ON (o.customer_id = c.id)', $bigquerySQL);
+   
+   true;
+}
+
+// Test type-safe window functions
+function <<test.Test>> meta::pure::dsl::tests::testTypeSafeWindowFunctions(): Boolean[1]
+{
+   // Define a table schema
+   let salesSchema = ^TableSchema<Any>(
+      name = 'sales',
+      columns = newMap([
+         pair('id', Integer), 
+         pair('product_id', Integer), 
+         pair('region', String),
+         pair('amount', Decimal),
+         pair('sale_date', Date)
+      ])
+   );
+   
+   // Create a table with schema
+   let salesTable = tableWithSchema('sales', $salesSchema);
+   
+   // Test window functions with type-safe columns
+   let df = select([
+      as(~($salesSchema, 'region'), 'region'),
+      as(~($salesSchema, 'product_id'), 'product'),
+      as(~($salesSchema, 'amount'), 'amount'),
+      as(over(
+         sum(~($salesSchema, 'amount')), 
+         partitionBy([~($salesSchema, 'region')])
+            ->orderBy([asc(~($salesSchema, 'sale_date'))])
+      ), 'running_total')
+   ])
+   ->from($salesTable);
+   
+   // Generate SQL for Snowflake and verify
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT region AS region, product_id AS product, amount AS amount, SUM(amount) OVER(PARTITION BY region ORDER BY sale_date ASC) AS running_total\nFROM sales', $snowflakeSQL);
+   
+   // Generate SQL for DuckDB and verify
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT region AS region, product_id AS product, amount AS amount, SUM(amount) OVER(PARTITION BY region ORDER BY sale_date ASC) AS running_total\nFROM sales', $duckdbSQL);
+   
+   // Generate SQL for BigQuery and verify
+   let bigquerySQL = $df->generateBigQuerySQL();
+   assertEquals('SELECT region AS region, product_id AS product, amount AS amount, SUM(amount) OVER(PARTITION BY region ORDER BY sale_date ASC) AS running_total\nFROM sales', $bigquerySQL);
+   
+   true;
+}

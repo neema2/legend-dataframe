@@ -1,0 +1,40 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::column::*;
+
+/**
+ * Databricks-specific features for the DataFrame DSL
+ * This module provides type-safe functions for Databricks-specific SQL features
+ */
+
+// Type-safe SQL generation for Databricks
+function meta::pure::dsl::dataframe::toDatabricksSQL<T>(df: DataFrame<T>[1]): String[1]
+{
+   toSQL($df, Database.DATABRICKS);
+}
+
+// Type-safe QUALIFY clause for Databricks
+function meta::pure::dsl::dataframe::qualify<T>(df: DataFrame<T>[1], condition: Column[1]): DataFrame<T>[1]
+{
+   ^$df(qualify = $condition);
+}
+
+// Type-safe CLUSTER BY clause for Databricks
+function meta::pure::dsl::dataframe::clusterBy<T>(df: DataFrame<T>[1], columns: Column[*]): DataFrame<T>[1]
+{
+   ^$df(clusterBy = $columns);
+}

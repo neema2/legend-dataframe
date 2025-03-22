@@ -209,7 +209,8 @@ Enum meta::pure::dsl::dataframe::Database
    SNOWFLAKE,
    DUCKDB,
    BIGQUERY,
-   DATABRICKS
+   DATABRICKS,
+   REDSHIFT
 }
 
 // Tilde notation functions for column references
@@ -1204,4 +1205,15 @@ function meta::pure::dsl::dataframe::toSQL(df: DataFrame[1], database: Database[
                                        meta::pure::dsl::redshift::generateRedshiftSQL($df),
                                        fail('Unsupported database: ' + $db->toString()); '')))))
    ]);
+}
+
+// Type-safe SQL generation for specific databases
+function meta::pure::dsl::dataframe::toRedshiftSQL<T>(df: DataFrame<T>[1]): String[1]
+{
+   toSQL($df, Database.REDSHIFT);
+}
+
+function meta::pure::dsl::dataframe::toDatabricksSQL<T>(df: DataFrame<T>[1]): String[1]
+{
+   toSQL($df, Database.DATABRICKS);
 }

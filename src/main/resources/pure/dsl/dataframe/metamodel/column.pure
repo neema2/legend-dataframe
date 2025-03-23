@@ -59,6 +59,12 @@ Class meta::pure::dsl::dataframe::metamodel::column::AggColSpec<K, V, R>
    valueFunc: V[1];
 }
 
+// Array of aggregation column specifications
+Class meta::pure::dsl::dataframe::metamodel::column::AggColSpecArray<K, V, R>
+{
+   specs: AggColSpec<K, V, R>[*];
+}
+
 // Window specification for window functions
 Class meta::pure::dsl::dataframe::metamodel::column::WindowSpec
 {

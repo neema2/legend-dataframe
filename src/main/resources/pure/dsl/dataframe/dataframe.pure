@@ -187,6 +187,26 @@ Enum meta::pure::dsl::dataframe::metamodel::UnaryOperator
 Class meta::pure::dsl::dataframe::metamodel::GroupByClause
 {
    columns : Expression[*];
+   type : GroupByType[0..1] = GroupByType.STANDARD;
+   groupingSets : List<List<Expression>>[0..1];
+   aggregations : AggregationSpec[*];
+}
+
+// Aggregation specification for group by
+Class meta::pure::dsl::dataframe::metamodel::AggregationSpec
+{
+   name : String[1];
+   keyFunction : Function<Any>[1];
+   valueFunction : Function<Any>[1];
+}
+
+// Group by types
+Enum meta::pure::dsl::dataframe::metamodel::GroupByType
+{
+   STANDARD,
+   CUBE,
+   ROLLUP,
+   GROUPING_SETS
 }
 
 // Order by clause
@@ -423,42 +443,194 @@ function meta::pure::dsl::dataframe::where(df: DataFrame[1], condition: FilterCo
    filter($df, {x | $condition})
 }
 
-// Type-safe groupBy functions
-function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
-{
-   // Create column references from ColSpecArray
-   let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
-   
-   ^$df(groupBy = ^GroupByClause(columns = $colRefs));
-}
+// Type-safe groupBy functions with aggregations
+native function meta::pure::dsl::dataframe::groupBy<T,Z,K,V,R>(df: DataFrame<T>[1], cols: ColSpecArray<Z>[1], agg: AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]}, R>[1]): DataFrame<Z+R>[1];
 
-function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
+native function meta::pure::dsl::dataframe::groupBy<T,Z,K,V,R>(df: DataFrame<T>[1], col: ColSpec<Z>[1], agg: AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]}, R>[1]): DataFrame<Z+R>[1];
+
+native function meta::pure::dsl::dataframe::groupBy<T,Z,K,V,R>(df: DataFrame<T>[1], cols: ColSpecArray<Z>[1], agg: AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]}, R>[1]): DataFrame<Z+R>[1];
+
+native function meta::pure::dsl::dataframe::groupBy<T,Z,K,V,R>(df: DataFrame<T>[1], col: ColSpec<Z>[1], agg: AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]}, R>[1]): DataFrame<Z+R>[1];
+// Implementation for groupBy with single column and single aggregation
+// Implementation for groupBy with single column and single aggregation
+function meta::pure::dsl::dataframe::groupBy<T,Z,K,V,R>(df: DataFrame<T>[1], col: ColSpec<Z>[1], agg: AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]}, R>[1]): DataFrame<Z+R>[1]
 {
    // Create column reference
    let colRef = ^ColumnReference(columnName = $col.name);
    
-   ^$df(groupBy = ^GroupByClause(columns = [$colRef]));
-}
-
-// Type-safe groupBy function with table schema validation
-function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], tableSchema: TableSchema<T>[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
-{
-   // Validate columns against table schema
-   let invalidColumns = $cols.names->filter(n | !$tableSchema.columns->containsKey($n));
-   if($invalidColumns->isEmpty(),
-      {
-         // Create column references from ColSpecArray
-         let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
-         
-         ^$df(groupBy = ^GroupByClause(columns = $colRefs));
-      },
-      error('Columns [' + $invalidColumns->joinStrings(', ') + '] not found in table schema "' + $tableSchema.name + '"')
+   // Create aggregation spec
+   let aggSpec = ^AggregationSpec(
+      name = $agg.name,
+      keyFunction = $agg.keyFunc,
+      valueFunction = $agg.valueFunc
    );
+   
+   ^$df(groupBy = ^GroupByClause(columns = [$colRef], aggregations = [$aggSpec]));
 }
 
+// Implementation for groupBy with multiple columns and single aggregation
+function meta::pure::dsl::dataframe::groupBy<T,Z,K,V,R>(df: DataFrame<T>[1], cols: ColSpecArray<Z>[1], agg: AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]}, R>[1]): DataFrame<Z+R>[1]
+{
+   // Create column references
+   let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+   
+   // Create aggregation spec
+   let aggSpec = ^AggregationSpec(
+      name = $agg.name,
+      keyFunction = $agg.keyFunc,
+      valueFunction = $agg.valueFunc
+   );
+   
+   ^$df(groupBy = ^GroupByClause(columns = $colRefs, aggregations = [$aggSpec]));
+}
+
+// Implementation for groupBy with single column and multiple aggregations
+function meta::pure::dsl::dataframe::groupBy<T,Z,K,V,R>(df: DataFrame<T>[1], col: ColSpec<Z>[1], agg: AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]}, R>[1]): DataFrame<Z+R>[1]
+{
+   // Create column reference
+   let colRef = ^ColumnReference(columnName = $col.name);
+   
+   // Create aggregation specs
+   let aggSpecs = $agg.specs->map(a | ^AggregationSpec(
+      name = $a.name,
+      keyFunction = $a.keyFunc,
+      valueFunction = $a.valueFunc
+   ));
+   
+   ^$df(groupBy = ^GroupByClause(columns = [$colRef], aggregations = $aggSpecs));
+}
+
+// Implementation for groupBy with multiple columns and multiple aggregations
+function meta::pure::dsl::dataframe::groupBy<T,Z,K,V,R>(df: DataFrame<T>[1], cols: ColSpecArray<Z>[1], agg: AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]}, R>[1]): DataFrame<Z+R>[1]
+{
+   // Create column references
+   let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+   
+   // Create aggregation specs
+   let aggSpecs = $agg.specs->map(a | ^AggregationSpec(
+      name = $a.name,
+      keyFunction = $a.keyFunc,
+      valueFunction = $a.valueFunc
+   ));
+   
+   ^$df(groupBy = ^GroupByClause(columns = $colRefs, aggregations = $aggSpecs));
+}
+
+// Implementation for groupBy with multiple columns and single aggregation
+function meta::pure::dsl::dataframe::groupBy<T,Z,K,V,R>(df: DataFrame<T>[1], cols: ColSpecArray<Z>[1], agg: AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]}, R>[1]): DataFrame<Z+R>[1]
+{
+   // Create column references
+   let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+   
+   // Create aggregation spec
+   let aggSpec = ^AggregationSpec(
+      name = $agg.name,
+      keyFunction = $agg.keyFunc,
+      valueFunction = $agg.valueFunc
+   );
+   
+   ^$df(groupBy = ^GroupByClause(columns = $colRefs, aggregations = [$aggSpec]));
+}
+
+// Implementation for groupBy with single column and multiple aggregations
+function meta::pure::dsl::dataframe::groupBy<T,Z,K,V,R>(df: DataFrame<T>[1], col: ColSpec<Z>[1], agg: AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]}, R>[1]): DataFrame<Z+R>[1]
+{
+   // Create column reference
+   let colRef = ^ColumnReference(columnName = $col.name);
+   
+   // Create aggregation specs
+   let aggSpecs = $agg.specs->map(a | ^AggregationSpec(
+      name = $a.name,
+      keyFunction = $a.keyFunc,
+      valueFunction = $a.valueFunc
+   ));
+   
+   ^$df(groupBy = ^GroupByClause(columns = [$colRef], aggregations = $aggSpecs));
+}
+
+// Implementation for groupBy with multiple columns and multiple aggregations
+function meta::pure::dsl::dataframe::groupBy<T,Z,K,V,R>(df: DataFrame<T>[1], cols: ColSpecArray<Z>[1], agg: AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]}, R>[1]): DataFrame<Z+R>[1]
+{
+   // Create column references
+   let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+   
+   // Create aggregation specs
+   let aggSpecs = $agg.specs->map(a | ^AggregationSpec(
+      name = $a.name,
+      keyFunction = $a.keyFunc,
+      valueFunction = $a.valueFunc
+   ));
+   
+   ^$df(groupBy = ^GroupByClause(columns = $colRefs, aggregations = $aggSpecs));
+}
+
+
+
+
+
+
+// Basic groupBy with column expressions
 function meta::pure::dsl::dataframe::groupBy(df: DataFrame[1], columns: Expression[*]): DataFrame[1]
 {
    ^$df(groupBy = ^GroupByClause(columns = $columns))
+// Convenience functions for creating aggregation specifications
+
+// Create a count aggregation
+function meta::pure::dsl::dataframe::count<T, K>(name: String[1], keyFunc: Function<{T[1]->K[0..1]}>[1]): AggColSpec<{T[1]->K[0..1]},{K[*]->Integer[0..1]}, Integer>[1]
+{
+   ^AggColSpec<{T[1]->K[0..1]},{K[*]->Integer[0..1]}, Integer>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = {k: K[*] | $k->count()}
+   );
+}
+
+// Create a sum aggregation
+function meta::pure::dsl::dataframe::sum<T, K, N>(name: String[1], keyFunc: Function<{T[1]->K[0..1]}>[1]): AggColSpec<{T[1]->K[0..1]},{K[*]->Number[0..1]}, Number>[1]
+{
+   ^AggColSpec<{T[1]->K[0..1]},{K[*]->Number[0..1]}, Number>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = {k: K[*] | $k->sum()}
+   );
+}
+
+// Create an average aggregation
+function meta::pure::dsl::dataframe::avg<T, K, N>(name: String[1], keyFunc: Function<{T[1]->K[0..1]}>[1]): AggColSpec<{T[1]->K[0..1]},{K[*]->Number[0..1]}, Number>[1]
+{
+   ^AggColSpec<{T[1]->K[0..1]},{K[*]->Number[0..1]}, Number>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = {k: K[*] | $k->average()}
+   );
+}
+
+// Create a min aggregation
+function meta::pure::dsl::dataframe::min<T, K, C>(name: String[1], keyFunc: Function<{T[1]->K[0..1]}>[1]): AggColSpec<{T[1]->K[0..1]},{K[*]->C[0..1]}, C>[1]
+{
+   ^AggColSpec<{T[1]->K[0..1]},{K[*]->C[0..1]}, C>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = {k: K[*] | $k->min()}
+   );
+}
+
+// Create a max aggregation
+function meta::pure::dsl::dataframe::max<T, K, C>(name: String[1], keyFunc: Function<{T[1]->K[0..1]}>[1]): AggColSpec<{T[1]->K[0..1]},{K[*]->C[0..1]}, C>[1]
+{
+   ^AggColSpec<{T[1]->K[0..1]},{K[*]->C[0..1]}, C>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = {k: K[*] | $k->max()}
+   );
+}
+
+// Create an array of aggregation specifications
+function meta::pure::dsl::dataframe::aggs<K, V, R>(agg: AggColSpec<K, V, R>[1], additional: AggColSpec<K, V, R>[*]): AggColSpecArray<K, V, R>[1]
+{
+   ^AggColSpecArray<K, V, R>(specs = $agg->concatenate($additional));
+}
+
 }
 
 function meta::pure::dsl::dataframe::having(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]

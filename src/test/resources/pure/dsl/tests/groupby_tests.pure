@@ -1,0 +1,279 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::column::*;
+import meta::pure::dsl::snowflake::*;
+import meta::pure::dsl::duckdb::*;
+import meta::pure::dsl::bigquery::*;
+import meta::pure::dsl::databricks::*;
+import meta::pure::dsl::redshift::*;
+import meta::pure::dsl::postgres::*;
+
+/**
+ * Tests for groupBy with aggregations in DataFrame DSL
+ */
+
+// Test groupBy with single column and single aggregation
+function <<test.Test>> meta::pure::dsl::tests::testGroupBySingleSingle(): Boolean[1]
+{
+   let df = ^DataFrame(
+      source = ^TableReference(tableName = 'sales'),
+      columns = []
+   );
+   
+   // Create a single column groupBy with a count aggregation
+   let result = $df->groupBy(
+      ^ColumnReference(columnName = 'region'),
+      ^AggregationSpec(
+         name = 'total_sales',
+         keyFunction = {x | $x.amount},
+         valueFunction = {y | $y->sum()}
+      )
+   );
+   
+   // Generate SQL for different dialects and verify
+   let snowflakeSQL = $result->generateSnowflakeSQL();
+   assertEquals('SELECT region, SUM(amount) AS total_sales\nFROM sales\nGROUP BY region', $snowflakeSQL);
+   
+   let duckdbSQL = $result->generateDuckDBSQL();
+   assertEquals('SELECT region, SUM(amount) AS total_sales\nFROM sales\nGROUP BY region', $duckdbSQL);
+   
+   let bigquerySQL = $result->generateBigQuerySQL();
+   assertEquals('SELECT region, SUM(amount) AS total_sales\nFROM sales\nGROUP BY region', $bigquerySQL);
+   
+   true;
+}
+
+// Test groupBy with multiple columns and multiple aggregations
+function <<test.Test>> meta::pure::dsl::tests::testGroupByMultipleMultiple(): Boolean[1]
+{
+   let df = ^DataFrame(
+      source = ^TableReference(tableName = 'sales'),
+      columns = []
+   );
+   
+   // Create a multi-column groupBy with multiple aggregations
+   let result = $df->groupBy(
+      [^ColumnReference(columnName = 'region'), ^ColumnReference(columnName = 'product')],
+      [
+         ^AggregationSpec(
+            name = 'total_sales',
+            keyFunction = {x | $x.amount},
+            valueFunction = {y | $y->sum()}
+         ),
+         ^AggregationSpec(
+            name = 'avg_sales',
+            keyFunction = {x | $x.amount},
+            valueFunction = {y | $y->average()}
+         ),
+         ^AggregationSpec(
+            name = 'count_sales',
+            keyFunction = {x | $x.amount},
+            valueFunction = {y | $y->size()}
+         )
+      ]
+   );
+   
+   // Generate SQL for different dialects and verify
+   let snowflakeSQL = $result->generateSnowflakeSQL();
+   assertEquals('SELECT region, product, SUM(amount) AS total_sales, AVG(amount) AS avg_sales, COUNT(amount) AS count_sales\nFROM sales\nGROUP BY region, product', $snowflakeSQL);
+   
+   let duckdbSQL = $result->generateDuckDBSQL();
+   assertEquals('SELECT region, product, SUM(amount) AS total_sales, AVG(amount) AS avg_sales, COUNT(amount) AS count_sales\nFROM sales\nGROUP BY region, product', $duckdbSQL);
+   
+   let bigquerySQL = $result->generateBigQuerySQL();
+   assertEquals('SELECT region, product, SUM(amount) AS total_sales, AVG(amount) AS avg_sales, COUNT(amount) AS count_sales\nFROM sales\nGROUP BY region, product', $bigquerySQL);
+   
+   true;
+}
+
+// Test groupBy with type-safe column specifications
+function <<test.Test>> meta::pure::dsl::tests::testGroupByTypeSafe(): Boolean[1]
+{
+   let tableSchema = ^TableSchema<Sales>(
+      name = 'sales',
+      columns = newMap([
+         pair('region', String),
+         pair('product', String),
+         pair('amount', Float)
+      ])
+   );
+   
+   let df = ^DataFrame(
+      source = ^TableReference(tableName = 'sales'),
+      columns = []
+   );
+   
+   // Create a type-safe groupBy with aggregations
+   let result = $df->groupBy<Sales, String>(
+      $tableSchema,
+      ^ColSpec<String>(name = 'region'),
+      ^AggColSpec<{Sales[1]->Float[1]}, {Float[*]->Float[1]}, Float>(
+         name = 'total_sales',
+         keyFunc = {x | $x.amount},
+         valueFunc = {y | $y->sum()}
+      )
+   );
+   
+   // Generate SQL for different dialects and verify
+   let snowflakeSQL = $result->generateSnowflakeSQL();
+   assertEquals('SELECT region, SUM(amount) AS total_sales\nFROM sales\nGROUP BY region', $snowflakeSQL);
+   
+   let duckdbSQL = $result->generateDuckDBSQL();
+   assertEquals('SELECT region, SUM(amount) AS total_sales\nFROM sales\nGROUP BY region', $duckdbSQL);
+   
+   true;
+}
+
+// Test groupBy with CUBE
+function <<test.Test>> meta::pure::dsl::tests::testGroupByCube(): Boolean[1]
+{
+   let df = ^DataFrame(
+      source = ^TableReference(tableName = 'sales'),
+      columns = []
+   );
+   
+   // Create a CUBE groupBy
+   let result = ^$df(
+      groupBy = ^GroupByClause(
+         columns = [^ColumnReference(columnName = 'region'), ^ColumnReference(columnName = 'product')],
+         type = GroupByType.CUBE,
+         aggregations = [
+            ^AggregationSpec(
+               name = 'total_sales',
+               keyFunction = {x | $x.amount},
+               valueFunction = {y | $y->sum()}
+            )
+         ]
+      )
+   );
+   
+   // Generate SQL for different dialects and verify
+   let snowflakeSQL = $result->generateSnowflakeSQL();
+   assertEquals('SELECT region, product, SUM(amount) AS total_sales\nFROM sales\nGROUP BY CUBE(region, product)', $snowflakeSQL);
+   
+   let duckdbSQL = $result->generateDuckDBSQL();
+   assertEquals('SELECT region, product, SUM(amount) AS total_sales\nFROM sales\nGROUP BY CUBE(region, product)', $duckdbSQL);
+   
+   true;
+}
+
+// Test groupBy with ROLLUP
+function <<test.Test>> meta::pure::dsl::tests::testGroupByRollup(): Boolean[1]
+{
+   let df = ^DataFrame(
+      source = ^TableReference(tableName = 'sales'),
+      columns = []
+   );
+   
+   // Create a ROLLUP groupBy
+   let result = ^$df(
+      groupBy = ^GroupByClause(
+         columns = [^ColumnReference(columnName = 'region'), ^ColumnReference(columnName = 'product')],
+         type = GroupByType.ROLLUP,
+         aggregations = [
+            ^AggregationSpec(
+               name = 'total_sales',
+               keyFunction = {x | $x.amount},
+               valueFunction = {y | $y->sum()}
+            )
+         ]
+      )
+   );
+   
+   // Generate SQL for different dialects and verify
+   let snowflakeSQL = $result->generateSnowflakeSQL();
+   assertEquals('SELECT region, product, SUM(amount) AS total_sales\nFROM sales\nGROUP BY ROLLUP(region, product)', $snowflakeSQL);
+   
+   let duckdbSQL = $result->generateDuckDBSQL();
+   assertEquals('SELECT region, product, SUM(amount) AS total_sales\nFROM sales\nGROUP BY ROLLUP(region, product)', $duckdbSQL);
+   
+   true;
+}
+
+// Test groupBy with GROUPING SETS
+function <<test.Test>> meta::pure::dsl::tests::testGroupByGroupingSets(): Boolean[1]
+{
+   let df = ^DataFrame(
+      source = ^TableReference(tableName = 'sales'),
+      columns = []
+   );
+   
+   // Create a GROUPING SETS groupBy
+   let result = ^$df(
+      groupBy = ^GroupByClause(
+         columns = [^ColumnReference(columnName = 'region'), ^ColumnReference(columnName = 'product')],
+         type = GroupByType.GROUPING_SETS,
+         groupingSets = [
+            [^ColumnReference(columnName = 'region')],
+            [^ColumnReference(columnName = 'product')],
+            []
+         ],
+         aggregations = [
+            ^AggregationSpec(
+               name = 'total_sales',
+               keyFunction = {x | $x.amount},
+               valueFunction = {y | $y->sum()}
+            )
+         ]
+      )
+   );
+   
+   // Generate SQL for different dialects and verify
+   let snowflakeSQL = $result->generateSnowflakeSQL();
+   assertEquals('SELECT region, product, SUM(amount) AS total_sales\nFROM sales\nGROUP BY GROUPING SETS((region), (product), ())', $snowflakeSQL);
+   
+   let duckdbSQL = $result->generateDuckDBSQL();
+   assertEquals('SELECT region, product, SUM(amount) AS total_sales\nFROM sales\nGROUP BY GROUPING SETS((region), (product), ())', $duckdbSQL);
+   
+   true;
+}
+
+// Test convenience functions for aggregations
+function <<test.Test>> meta::pure::dsl::tests::testGroupByConvenienceFunctions(): Boolean[1]
+{
+   let df = ^DataFrame(
+      source = ^TableReference(tableName = 'sales'),
+      columns = []
+   );
+   
+   // Create a groupBy using convenience functions
+   let result = $df->groupBy(
+      [^ColumnReference(columnName = 'region'), ^ColumnReference(columnName = 'product')],
+      aggs([
+         count({x | $x.id}, 'count_id'),
+         sum({x | $x.amount}, 'total_amount'),
+         avg({x | $x.amount}, 'avg_amount'),
+         min({x | $x.amount}, 'min_amount'),
+         max({x | $x.amount}, 'max_amount')
+      ])
+   );
+   
+   // Generate SQL for different dialects and verify
+   let snowflakeSQL = $result->generateSnowflakeSQL();
+   assertEquals('SELECT region, product, COUNT(id) AS count_id, SUM(amount) AS total_amount, AVG(amount) AS avg_amount, MIN(amount) AS min_amount, MAX(amount) AS max_amount\nFROM sales\nGROUP BY region, product', $snowflakeSQL);
+   
+   true;
+}
+
+// Define a sample class for type-safe testing
+Class Sales
+{
+   region: String[1];
+   product: String[1];
+   amount: Float[1];
+   id: Integer[1];
+}

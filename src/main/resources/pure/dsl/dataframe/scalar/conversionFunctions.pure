@@ -1,0 +1,237 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::scalar::*;
+import meta::pure::dsl::dataframe::scalar::*;
+
+/**
+ * Implementation of type conversion scalar functions for DataFrame DSL
+ */
+
+// Initialize type conversion functions in the scalar function registry
+function meta::pure::dsl::dataframe::scalar::initializeConversionFunctions(registry: Map<String, ScalarFunctionImplementation>[1]): Map<String, ScalarFunctionImplementation>[1]
+{
+   // CAST function
+   $registry->put('cast', ^ScalarFunctionImplementation(
+      standardName = 'CAST',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'CAST'),
+         pair(Database.DUCKDB, 'CAST'),
+         pair(Database.BIGQUERY, 'CAST'),
+         pair(Database.DATABRICKS, 'CAST'),
+         pair(Database.REDSHIFT, 'CAST'),
+         pair(Database.POSTGRES, 'CAST')
+      ]),
+      // Special handling for CAST syntax which varies slightly by database
+      parameterTransformations = newMap([
+         pair(Database.SNOWFLAKE, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [^FunctionExpression(
+                  functionName = 'CAST',
+                  parameters = [$params->at(0)->concatenate(
+                     ^LiteralExpression(value = ' AS ' + $params->at(1)->cast(@LiteralExpression).value->toString())
+                  )]
+               )],
+               $params
+            )
+         }),
+         pair(Database.DUCKDB, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [^FunctionExpression(
+                  functionName = 'CAST',
+                  parameters = [$params->at(0)->concatenate(
+                     ^LiteralExpression(value = ' AS ' + $params->at(1)->cast(@LiteralExpression).value->toString())
+                  )]
+               )],
+               $params
+            )
+         }),
+         pair(Database.BIGQUERY, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [^FunctionExpression(
+                  functionName = 'CAST',
+                  parameters = [$params->at(0)->concatenate(
+                     ^LiteralExpression(value = ' AS ' + $params->at(1)->cast(@LiteralExpression).value->toString())
+                  )]
+               )],
+               $params
+            )
+         }),
+         pair(Database.DATABRICKS, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [^FunctionExpression(
+                  functionName = 'CAST',
+                  parameters = [$params->at(0)->concatenate(
+                     ^LiteralExpression(value = ' AS ' + $params->at(1)->cast(@LiteralExpression).value->toString())
+                  )]
+               )],
+               $params
+            )
+         }),
+         pair(Database.REDSHIFT, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [^FunctionExpression(
+                  functionName = 'CAST',
+                  parameters = [$params->at(0)->concatenate(
+                     ^LiteralExpression(value = ' AS ' + $params->at(1)->cast(@LiteralExpression).value->toString())
+                  )]
+               )],
+               $params
+            )
+         }),
+         pair(Database.POSTGRES, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [^FunctionExpression(
+                  functionName = 'CAST',
+                  parameters = [$params->at(0)->concatenate(
+                     ^LiteralExpression(value = ' AS ' + $params->at(1)->cast(@LiteralExpression).value->toString())
+                  )]
+               )],
+               $params
+            )
+         })
+      ])
+   ));
+   
+   // TO_NUMBER function
+   $registry->put('to_number', ^ScalarFunctionImplementation(
+      standardName = 'TO_NUMBER',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'TO_NUMBER'),
+         pair(Database.DUCKDB, 'CAST'),
+         pair(Database.BIGQUERY, 'CAST'),
+         pair(Database.DATABRICKS, 'CAST'),
+         pair(Database.REDSHIFT, 'TO_NUMBER'),
+         pair(Database.POSTGRES, 'TO_NUMBER')
+      ]),
+      parameterTransformations = newMap([
+         pair(Database.DUCKDB, {params: Expression[*] | 
+            if($params->size() >= 1,
+               [^FunctionExpression(
+                  functionName = 'CAST',
+                  parameters = [$params->at(0)->concatenate(
+                     ^LiteralExpression(value = ' AS DOUBLE')
+                  )]
+               )],
+               $params
+            )
+         }),
+         pair(Database.BIGQUERY, {params: Expression[*] | 
+            if($params->size() >= 1,
+               [^FunctionExpression(
+                  functionName = 'CAST',
+                  parameters = [$params->at(0)->concatenate(
+                     ^LiteralExpression(value = ' AS NUMERIC')
+                  )]
+               )],
+               $params
+            )
+         }),
+         pair(Database.DATABRICKS, {params: Expression[*] | 
+            if($params->size() >= 1,
+               [^FunctionExpression(
+                  functionName = 'CAST',
+                  parameters = [$params->at(0)->concatenate(
+                     ^LiteralExpression(value = ' AS DECIMAL(38, 10)')
+                  )]
+               )],
+               $params
+            )
+         })
+      ])
+   ));
+   
+   // TO_DATE function
+   $registry->put('to_date', ^ScalarFunctionImplementation(
+      standardName = 'TO_DATE',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'TO_DATE'),
+         pair(Database.DUCKDB, 'TO_DATE'),
+         pair(Database.BIGQUERY, 'PARSE_DATE'),
+         pair(Database.DATABRICKS, 'TO_DATE'),
+         pair(Database.REDSHIFT, 'TO_DATE'),
+         pair(Database.POSTGRES, 'TO_DATE')
+      ]),
+      parameterTransformations = newMap([
+         pair(Database.BIGQUERY, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [$params->at(1), $params->at(0)],  // BigQuery has reversed parameter order
+               $params
+            )
+         })
+      ])
+   ));
+   
+   // TO_TIMESTAMP function
+   $registry->put('to_timestamp', ^ScalarFunctionImplementation(
+      standardName = 'TO_TIMESTAMP',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'TO_TIMESTAMP'),
+         pair(Database.DUCKDB, 'TO_TIMESTAMP'),
+         pair(Database.BIGQUERY, 'PARSE_TIMESTAMP'),
+         pair(Database.DATABRICKS, 'TO_TIMESTAMP'),
+         pair(Database.REDSHIFT, 'TO_TIMESTAMP'),
+         pair(Database.POSTGRES, 'TO_TIMESTAMP')
+      ]),
+      parameterTransformations = newMap([
+         pair(Database.BIGQUERY, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [$params->at(1), $params->at(0)],  // BigQuery has reversed parameter order
+               $params
+            )
+         })
+      ])
+   ));
+   
+   $registry;
+}
+
+// Factory functions for creating type conversion scalar functions
+function meta::pure::dsl::dataframe::cast(expr: Expression[1], type: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'cast',
+      parameters = [$expr, $type],
+      implementation = scalarFunctionRegistry()->get('cast')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::toNumber(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'to_number',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('to_number')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::toDate(expr: Expression[1], format: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'to_date',
+      parameters = [$expr, $format],
+      implementation = scalarFunctionRegistry()->get('to_date')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::toTimestamp(expr: Expression[1], format: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'to_timestamp',
+      parameters = [$expr, $format],
+      implementation = scalarFunctionRegistry()->get('to_timestamp')->toOne()
+   );
+}

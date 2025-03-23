@@ -28,72 +28,12 @@ function meta::pure::dsl::dataframe::initializeScalarFunctionRegistry(): Map<Str
 {
    let registry = newMap([]);
    
-   // Math functions
-   $registry->put('abs', ^ScalarFunctionImplementation(
-      standardName = 'ABS',
-      databases = newMap([
-         pair(Database.SNOWFLAKE, 'ABS'),
-         pair(Database.DUCKDB, 'ABS'),
-         pair(Database.BIGQUERY, 'ABS'),
-         pair(Database.DATABRICKS, 'ABS'),
-         pair(Database.REDSHIFT, 'ABS'),
-         pair(Database.POSTGRES, 'ABS')
-      ])
-   ));
-   
-   $registry->put('cos', ^ScalarFunctionImplementation(
-      standardName = 'COS',
-      databases = newMap([
-         pair(Database.SNOWFLAKE, 'COS'),
-         pair(Database.DUCKDB, 'COS'),
-         pair(Database.BIGQUERY, 'COS'),
-         pair(Database.DATABRICKS, 'COS'),
-         pair(Database.REDSHIFT, 'COS'),
-         pair(Database.POSTGRES, 'COS')
-      ])
-   ));
-   
-   // Date functions with identical syntax
-   $registry->put('date_part', ^ScalarFunctionImplementation(
-      standardName = 'DATE_PART',
-      databases = newMap([
-         pair(Database.SNOWFLAKE, 'DATE_PART'),
-         pair(Database.DUCKDB, 'DATE_PART'),
-         pair(Database.BIGQUERY, 'EXTRACT'),
-         pair(Database.DATABRICKS, 'DATE_PART'),
-         pair(Database.REDSHIFT, 'DATE_PART'),
-         pair(Database.POSTGRES, 'DATE_PART')
-      ])
-   ));
-   
-   // Date difference function with varying syntax
-   $registry->put('datediff', ^ScalarFunctionImplementation(
-      standardName = 'DATEDIFF',
-      databases = newMap([
-         pair(Database.SNOWFLAKE, 'DATEDIFF'),
-         pair(Database.DUCKDB, 'DATEDIFF'),
-         pair(Database.BIGQUERY, 'DATE_DIFF'),
-         pair(Database.DATABRICKS, 'DATEDIFF'),
-         pair(Database.REDSHIFT, 'DATEDIFF'),
-         pair(Database.POSTGRES, 'DATE_PART')
-      ]),
-      parameterTransformations = newMap([
-         // For Postgres, transform parameters to use DATE_PART with subtraction
-         pair(Database.POSTGRES, {params: Expression[*] | 
-            if($params->size() >= 3,
-               [
-                  ^LiteralExpression(value = 'day'),
-                  ^BinaryOperation(
-                     left = $params->at(2), 
-                     operator = BinaryOperator.SUBTRACT, 
-                     right = $params->at(1)
-                  )
-               ],
-               $params
-            )
-         })
-      ])
-   ));
+   // Initialize function categories
+   $registry = meta::pure::dsl::dataframe::scalar::initializeMathFunctions($registry);
+   $registry = meta::pure::dsl::dataframe::scalar::initializeDateFunctions($registry);
+   $registry = meta::pure::dsl::dataframe::scalar::initializeStringFunctions($registry);
+   $registry = meta::pure::dsl::dataframe::scalar::initializeConditionalFunctions($registry);
+   $registry = meta::pure::dsl::dataframe::scalar::initializeConversionFunctions($registry);
    
    $registry;
 }

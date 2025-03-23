@@ -137,6 +137,99 @@ function meta::pure::dsl::dataframe::scalar::initializeStringFunctions(registry:
       ])
    ));
    
+   // LEFT function
+   $registry->put('left', ^ScalarFunctionImplementation(
+      standardName = 'LEFT',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'LEFT'),
+         pair(Database.DUCKDB, 'LEFT'),
+         pair(Database.BIGQUERY, 'LEFT'),
+         pair(Database.DATABRICKS, 'LEFT'),
+         pair(Database.REDSHIFT, 'LEFT'),
+         pair(Database.POSTGRES, 'LEFT')
+      ])
+   ));
+   
+   // RIGHT function
+   $registry->put('right', ^ScalarFunctionImplementation(
+      standardName = 'RIGHT',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'RIGHT'),
+         pair(Database.DUCKDB, 'RIGHT'),
+         pair(Database.BIGQUERY, 'RIGHT'),
+         pair(Database.DATABRICKS, 'RIGHT'),
+         pair(Database.REDSHIFT, 'RIGHT'),
+         pair(Database.POSTGRES, 'RIGHT')
+      ])
+   ));
+   
+   // SPLIT function with varying syntax
+   $registry->put('split', ^ScalarFunctionImplementation(
+      standardName = 'SPLIT',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'SPLIT'),
+         pair(Database.DUCKDB, 'STRING_SPLIT'),
+         pair(Database.BIGQUERY, 'SPLIT'),
+         pair(Database.DATABRICKS, 'SPLIT'),
+         pair(Database.REDSHIFT, 'SPLIT_PART'),
+         pair(Database.POSTGRES, 'STRING_TO_ARRAY')
+      ]),
+      parameterTransformations = newMap([
+         // For Redshift, SPLIT_PART requires an index parameter
+         pair(Database.REDSHIFT, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [$params->at(0), $params->at(1), ^LiteralExpression(value = '1')],
+               $params
+            )
+         }),
+         // For Postgres, STRING_TO_ARRAY has different parameter order
+         pair(Database.POSTGRES, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [$params->at(0), $params->at(1)],
+               $params
+            )
+         })
+      ])
+   ));
+   
+   // REGEXP_EXTRACT function with varying syntax
+   $registry->put('regexp_extract', ^ScalarFunctionImplementation(
+      standardName = 'REGEXP_EXTRACT',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'REGEXP_SUBSTR'),
+         pair(Database.DUCKDB, 'REGEXP_EXTRACT'),
+         pair(Database.BIGQUERY, 'REGEXP_EXTRACT'),
+         pair(Database.DATABRICKS, 'REGEXP_EXTRACT'),
+         pair(Database.REDSHIFT, 'REGEXP_SUBSTR'),
+         pair(Database.POSTGRES, 'REGEXP_MATCHES')
+      ]),
+      parameterTransformations = newMap([
+         // For Snowflake and Redshift, add position parameter
+         pair(Database.SNOWFLAKE, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [$params->at(0), $params->at(1), ^LiteralExpression(value = '1'), ^LiteralExpression(value = '1')],
+               $params
+            )
+         }),
+         pair(Database.REDSHIFT, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [$params->at(0), $params->at(1), ^LiteralExpression(value = '1'), ^LiteralExpression(value = '1')],
+               $params
+            )
+         }),
+         // For Postgres, wrap in array access
+         pair(Database.POSTGRES, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [^FunctionExpression(
+                  functionName = 'REGEXP_MATCHES',
+                  parameters = [$params->at(0), $params->at(1)]
+               ), ^LiteralExpression(value = '[1]')],
+               $params
+            )
+         })
+      ])
+   ));
+   
    $registry;
 }
 
@@ -210,5 +303,41 @@ function meta::pure::dsl::dataframe::regexp_match(str: Expression[1], pattern: E
       functionName = 'regexp_match',
       parameters = [$str, $pattern],
       implementation = scalarFunctionRegistry()->get('regexp_match')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::left(str: Expression[1], length: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'left',
+      parameters = [$str, $length],
+      implementation = scalarFunctionRegistry()->get('left')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::right(str: Expression[1], length: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'right',
+      parameters = [$str, $length],
+      implementation = scalarFunctionRegistry()->get('right')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::split(str: Expression[1], delimiter: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'split',
+      parameters = [$str, $delimiter],
+      implementation = scalarFunctionRegistry()->get('split')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::regexpExtract(str: Expression[1], pattern: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'regexp_extract',
+      parameters = [$str, $pattern],
+      implementation = scalarFunctionRegistry()->get('regexp_extract')->toOne()
    );
 }

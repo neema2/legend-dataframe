@@ -28,8 +28,8 @@ function <<test.Test>> meta::pure::dsl::tests::testSimpleSelect(): Boolean[1]
 {
    // Create a simple SELECT query
    let df = select([
-      as(col('id'), 'id'),
-      as(col('name'), 'name')
+      as(~id, 'id'),
+      as(~name, 'name')
    ])->from(table('customers'));
    
    // Generate SQL for Snowflake
@@ -47,8 +47,8 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithFilter(): Boolean[1
 {
    // Create a SELECT query with filter using Pure built-ins
    let df = select([
-      as(col('id'), 'id'),
-      as(col('name'), 'name')
+      as(~id, 'id'),
+      as(~name, 'name')
    ])->from(table('customers'))->filter({x | $x.id == 100});
    
    // Generate SQL for Snowflake
@@ -66,9 +66,9 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithJoin(): Boolean[1]
 {
    // Create a SELECT query with JOIN
    let df = select([
-      as(col('c', 'id'), 'customer_id'),
-      as(col('c', 'name'), 'customer_name'),
-      as(col('o', 'id'), 'order_id')
+      as(~('c', 'id'), 'customer_id'),
+      as(~('c', 'name'), 'customer_name'),
+      as(~('o', 'id'), 'order_id')
    ])->from(
       join(
          tableAs('customers', 'c'),
@@ -92,10 +92,10 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithGroupBy(): Boolean[
 {
    // Create a SELECT query with GROUP BY and aggregate functions
    let df = select([
-      as(col('category'), 'category'),
-      as(count(col('id')), 'count'),
-      as(sum(col('amount')), 'total_amount')
-   ])->from(table('orders'))->groupBy([col('category')]);
+      as(~category, 'category'),
+      as(count(~id), 'count'),
+      as(sum(~amount), 'total_amount')
+   ])->from(table('orders'))->groupBy([~category]);
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -112,9 +112,9 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithOrderBy(): Boolean[
 {
    // Create a SELECT query with ORDER BY
    let df = select([
-      as(col('id'), 'id'),
-      as(col('name'), 'name')
-   ])->from(table('customers'))->orderBy([asc(col('name')), desc(col('id'))]);
+      as(~id, 'id'),
+      as(~name, 'name')
+   ])->from(table('customers'))->orderBy([asc(~name), desc(~id)]);
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -131,8 +131,8 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithLimit(): Boolean[1]
 {
    // Create a SELECT query with LIMIT and OFFSET
    let df = select([
-      as(col('id'), 'id'),
-      as(col('name'), 'name')
+      as(~id, 'id'),
+      as(~name, 'name')
    ])->from(table('customers'))->limit(10)->offset(20);
    
    // Generate SQL for Snowflake
@@ -150,9 +150,9 @@ function <<test.Test>> meta::pure::dsl::tests::testComplexQuery(): Boolean[1]
 {
    // Create a complex SELECT query with multiple features
    let df = selectDistinct([
-      as(col('c', 'category'), 'category'),
-      as(count(col('o', 'id')), 'order_count'),
-      as(sum(col('o', 'amount')), 'total_amount')
+      as(~('c', 'category'), 'category'),
+      as(count(~('o', 'id')), 'order_count'),
+      as(sum(~('o', 'amount')), 'total_amount')
    ])->from(
       leftJoin(
          tableAs('categories', 'c'),
@@ -160,9 +160,9 @@ function <<test.Test>> meta::pure::dsl::tests::testComplexQuery(): Boolean[1]
          {c, o | $c.id == $o.category_id}
       )
    )->filter({x | $x.o.amount > 100 && $x.o.customer_id != null})->groupBy([
-      col('c', 'category')
-   ])->having({x | count(col('o', 'id')) > 5})->orderBy([
-      desc(sum(col('o', 'amount')))
+      ~('c', 'category')
+   ])->having({x | count(~('o', 'id')) > 5})->orderBy([
+      desc(sum(~('o', 'amount')))
    ])->limit(5);
    
    // Generate SQL for Snowflake
@@ -195,8 +195,8 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabaseSpecificSyntaxDiffere
    // Test a case where Snowflake and DuckDB have different syntax
    // In this case, LEFT OUTER JOIN vs LEFT JOIN
    let df = select([
-      as(col('c', 'name'), 'customer_name'),
-      as(col('o', 'id'), 'order_id')
+      as(~('c', 'name'), 'customer_name'),
+      as(~('o', 'id'), 'order_id')
    ])->from(
       leftJoin(
          tableAs('customers', 'c'),
@@ -222,9 +222,9 @@ function <<test.Test>> meta::pure::dsl::tests::testWindowFunctionsBasic(): Boole
 {
    // Create a SELECT query with basic window functions
    let df = select([
-      as(col('id'), 'id'),
-      as(col('name'), 'name'),
-      as(over(rowNumber(), partitionBy([col('category')])->orderBy([asc(col('id'))])), 'row_num')
+      as(~id, 'id'),
+      as(~name, 'name'),
+      as(over(rowNumber(), partitionBy([~category])->orderBy([asc(~id)])), 'row_num')
    ])->from(table('employees'));
    
    // Generate SQL for Snowflake
@@ -242,13 +242,13 @@ function <<test.Test>> meta::pure::dsl::tests::testWindowFunctionsWithFrames(): 
 {
    // Create a SELECT query with window functions that use frames
    let df = select([
-      as(col('id'), 'id'),
-      as(col('sales'), 'sales'),
-      as(over(sum(col('sales')), partitionBy([col('region')])
-                               ->orderBy([asc(col('date'))])
+      as(~id, 'id'),
+      as(~sales, 'sales'),
+      as(over(sum(~sales), partitionBy([~region])
+                               ->orderBy([asc(~date)])
                                ->rowsBetween(unboundedPreceding(), currentRow())), 'running_total'),
-      as(over(avg(col('sales')), partitionBy([col('region')])
-                               ->orderBy([asc(col('date'))])
+      as(over(avg(~sales), partitionBy([~region])
+                               ->orderBy([asc(~date)])
                                ->rowsBetween(preceding(2), following(2))), 'moving_avg')
    ])->from(table('sales'));
    
@@ -267,11 +267,11 @@ function <<test.Test>> meta::pure::dsl::tests::testWindowFunctionsWithRange(): B
 {
    // Create a SELECT query with window functions that use RANGE frame type
    let df = select([
-      as(col('id'), 'id'),
-      as(col('date'), 'date'),
-      as(col('sales'), 'sales'),
-      as(over(sum(col('sales')), partitionBy([col('region')])
-                               ->orderBy([asc(col('date'))])
+      as(~id, 'id'),
+      as(~date, 'date'),
+      as(~sales, 'sales'),
+      as(over(sum(~sales), partitionBy([~region])
+                               ->orderBy([asc(~date)])
                                ->rangeBetween(unboundedPreceding(), currentRow())), 'running_total')
    ])->from(table('sales'));
    
@@ -290,13 +290,13 @@ function <<test.Test>> meta::pure::dsl::tests::testLeadLagWindowFunctions(): Boo
 {
    // Create a SELECT query with LEAD and LAG window functions
    let df = select([
-      as(col('id'), 'id'),
-      as(col('date'), 'date'),
-      as(col('sales'), 'sales'),
-      as(over(lead(col('sales')), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'next_day_sales'),
-      as(over(lead(col('sales'), 2, literal(0)), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'sales_in_two_days'),
-      as(over(lag(col('sales')), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'prev_day_sales'),
-      as(over(lag(col('sales'), 3, literal(0)), partitionBy([col('region')])->orderBy([asc(col('date'))])), 'sales_three_days_ago')
+      as(~id, 'id'),
+      as(~date, 'date'),
+      as(~sales, 'sales'),
+      as(over(lead(~sales), partitionBy([~region])->orderBy([asc(~date)])), 'next_day_sales'),
+      as(over(lead(~sales, 2, literal(0)), partitionBy([~region])->orderBy([asc(~date)])), 'sales_in_two_days'),
+      as(over(lag(~sales), partitionBy([~region])->orderBy([asc(~date)])), 'prev_day_sales'),
+      as(over(lag(~sales, 3, literal(0)), partitionBy([~region])->orderBy([asc(~date)])), 'sales_three_days_ago')
    ])->from(table('sales'));
    
    // Generate SQL for Snowflake
@@ -314,12 +314,12 @@ function <<test.Test>> meta::pure::dsl::tests::testRankingWindowFunctions(): Boo
 {
    // Create a SELECT query with ranking window functions
    let df = select([
-      as(col('id'), 'id'),
-      as(col('name'), 'name'),
-      as(col('score'), 'score'),
-      as(over(rank(), partitionBy([col('department')])->orderBy([desc(col('score'))])), 'rank'),
-      as(over(denseRank(), partitionBy([col('department')])->orderBy([desc(col('score'))])), 'dense_rank'),
-      as(over(rowNumber(), partitionBy([col('department')])->orderBy([desc(col('score'))])), 'row_number')
+      as(~id, 'id'),
+      as(~name, 'name'),
+      as(~score, 'score'),
+      as(over(rank(), partitionBy([~department])->orderBy([desc(~score)])), 'rank'),
+      as(over(denseRank(), partitionBy([~department])->orderBy([desc(~score)])), 'dense_rank'),
+      as(over(rowNumber(), partitionBy([~department])->orderBy([desc(~score)])), 'row_number')
    ])->from(table('employees'));
    
    // Generate SQL for Snowflake
@@ -337,14 +337,14 @@ function <<test.Test>> meta::pure::dsl::tests::testFirstLastValueWindowFunctions
 {
    // Create a SELECT query with FIRST_VALUE and LAST_VALUE window functions
    let df = select([
-      as(col('id'), 'id'),
-      as(col('date'), 'date'),
-      as(col('sales'), 'sales'),
-      as(over(firstValue(col('sales')), partitionBy([col('region')])
-                                  ->orderBy([asc(col('date'))])
+      as(~id, 'id'),
+      as(~date, 'date'),
+      as(~sales, 'sales'),
+      as(over(firstValue(~sales), partitionBy([~region])
+                                  ->orderBy([asc(~date)])
                                   ->rowsBetween(unboundedPreceding(), unboundedFollowing())), 'first_sale'),
-      as(over(lastValue(col('sales')), partitionBy([col('region')])
-                                 ->orderBy([asc(col('date'))])
+      as(over(lastValue(~sales), partitionBy([~region])
+                                 ->orderBy([asc(~date)])
                                  ->rowsBetween(unboundedPreceding(), unboundedFollowing())), 'last_sale')
    ])->from(table('sales'));
    
@@ -363,14 +363,14 @@ function <<test.Test>> meta::pure::dsl::tests::testAggregateWindowFunctions(): B
 {
    // Create a SELECT query with aggregate window functions
    let df = select([
-      as(col('id'), 'id'),
-      as(col('department'), 'department'),
-      as(col('salary'), 'salary'),
-      as(over(sum(col('salary')), partitionBy([col('department')])), 'dept_total'),
-      as(over(avg(col('salary')), partitionBy([col('department')])), 'dept_avg'),
-      as(over(min(col('salary')), partitionBy([col('department')])), 'dept_min'),
-      as(over(max(col('salary')), partitionBy([col('department')])), 'dept_max'),
-      as(over(count(col('id')), partitionBy([col('department')])), 'dept_count')
+      as(~id, 'id'),
+      as(~department, 'department'),
+      as(~salary, 'salary'),
+      as(over(sum(~salary), partitionBy([~department])), 'dept_total'),
+      as(over(avg(~salary), partitionBy([~department])), 'dept_avg'),
+      as(over(min(~salary), partitionBy([~department])), 'dept_min'),
+      as(over(max(~salary), partitionBy([~department])), 'dept_max'),
+      as(over(count(~id), partitionBy([~department])), 'dept_count')
    ])->from(table('employees'));
    
    // Generate SQL for Snowflake
@@ -403,8 +403,8 @@ function <<test.Test>> meta::pure::dsl::tests::testCommonTableExpressions(): Boo
    // Create a CTE for customer data
    let customerCte = cte('customers',
       select([
-         as(col('id'), 'id'),
-         as(col('name'), 'name')
+         as(~id, 'id'),
+         as(~name, 'name')
       ])
       ->from(table('customer_data'))
    );
@@ -412,17 +412,17 @@ function <<test.Test>> meta::pure::dsl::tests::testCommonTableExpressions(): Boo
    // Create a CTE for order data
    let orderCte = cte('orders',
       select([
-         as(col('id'), 'id'),
-         as(col('customer_id'), 'customer_id'),
-         as(col('amount'), 'amount')
+         as(~id, 'id'),
+         as(~customer_id, 'customer_id'),
+         as(~amount, 'amount')
       ])
       ->from(table('order_data'))
    );
    
    // Create a main query using the CTEs
    let df = select([
-      as(col('c', 'name'), 'customer_name'),
-      as(sum(col('o', 'amount')), 'total_orders')
+      as(~('c', 'name'), 'customer_name'),
+      as(sum(~('o', 'amount')), 'total_orders')
    ])
    ->from(join(
       table('customers', 'c'),
@@ -430,7 +430,7 @@ function <<test.Test>> meta::pure::dsl::tests::testCommonTableExpressions(): Boo
       JoinType.INNER,
       {c, o | $c.id == $o.customer_id}
    ))
-   ->groupBy([col('c', 'name')])
+   ->groupBy([~('c', 'name')])
    ->with([$customerCte, $orderCte]);
    
    // Generate SQL for all database types
@@ -452,8 +452,8 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabricksSQL(): Boolean[1]
 {
    // Create a simple DataFrame
    let df = select([
-      as(col('c', 'name'), 'customer_name'),
-      as(col('c', 'age'), 'customer_age')
+      as(~('c', 'name'), 'customer_name'),
+      as(~('c', 'age'), 'customer_age')
    ])->from(tableAs('customers', 'c'))->filter({x | $x.c.age > 30});
    
    // Generate Databricks SQL
@@ -475,10 +475,10 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabricksQualify(): Boolean[
 {
    // Create a DataFrame with a window function and QUALIFY clause
    let df = select([
-      as(col('c', 'name'), 'customer_name'),
-      as(col('c', 'region'), 'region'),
-      as(col('c', 'sales'), 'sales'),
-      as(rowNumber()->over(partitionBy([col('c', 'region')]), orderBy([desc(col('c', 'sales'))])), 'sales_rank')
+      as(~('c', 'name'), 'customer_name'),
+      as(~('c', 'region'), 'region'),
+      as(~('c', 'sales'), 'sales'),
+      as(rowNumber()->over(partitionBy([~('c', 'region')]), orderBy([desc(~('c', 'sales'))])), 'sales_rank')
    ])
    ->from(tableAs('customers', 'c'))
    ->qualify({x | $x.sales_rank <= 3}); // Only keep top 3 customers by sales in each region
@@ -497,12 +497,12 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabricksClusterBy(): Boolea
 {
    // Create a DataFrame with CLUSTER BY clause (Databricks-specific)
    let df = select([
-      as(col('c', 'name'), 'customer_name'),
-      as(col('c', 'region'), 'region'),
-      as(col('c', 'sales'), 'sales')
+      as(~('c', 'name'), 'customer_name'),
+      as(~('c', 'region'), 'region'),
+      as(~('c', 'sales'), 'sales')
    ])
    ->from(tableAs('customers', 'c'))
-   ->clusterBy([col('region')]); // Cluster results by region
+   ->clusterBy([~region]); // Cluster results by region
    
    // Generate Databricks SQL
    let databricksSQL = $df->generateDatabricksSQL();

@@ -204,7 +204,7 @@ function <<access.private>> meta::pure::dsl::bigquery::generateAggregationThresh
 function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryExpression(column: Column[1]): String[1]
 {
    $column->match([
-      c: ColumnReference[1] | $c.name,
+      c: ColumnReference[1] | $c.colSpec.name,
       c: LiteralColumn[1] | generateBigQueryLiteral($c.value),
       c: FunctionColumn[1] | generateBigQueryFunction($c),
       c: CaseColumn[1] | generateBigQueryCase($c),

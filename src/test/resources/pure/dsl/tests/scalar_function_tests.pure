@@ -31,8 +31,8 @@ function <<test.Test>> meta::pure::dsl::tests::testCommonMathFunctions(): Boolea
 {
    // Create a DataFrame with math functions
    let df = select([
-      abs(col('value'))->as('abs_value'),
-      cos(col('angle'))->as('cos_angle')
+      abs(~value)->as('abs_value'),
+      cos(~angle)->as('cos_angle')
    ])
    ->from(table('data'));
    
@@ -70,7 +70,7 @@ function <<test.Test>> meta::pure::dsl::tests::testDateFunctionsWithVaryingSynta
 {
    // Create a DataFrame with date functions
    let df = select([
-      datediff(literal('day'), col('start_date'), col('end_date'))->as('days_diff')
+      datediff(literal('day'), ~start_date, ~end_date)->as('days_diff')
    ])
    ->from(table('date_data'));
    
@@ -97,9 +97,9 @@ function <<test.Test>> meta::pure::dsl::tests::testStringFunctions(): Boolean[1]
 {
    // Create a DataFrame with string functions
    let df = select([
-      upper(col('name'))->as('upper_name'),
-      lower(col('name'))->as('lower_name'),
-      length(col('name'))->as('name_length')
+      upper(~name)->as('upper_name'),
+      lower(~name)->as('lower_name'),
+      length(~name)->as('name_length')
    ])
    ->from(table('users'));
    
@@ -143,7 +143,7 @@ function <<test.Test>> meta::pure::dsl::tests::testNestedScalarFunctions(): Bool
 {
    // Create a DataFrame with nested scalar functions
    let df = select([
-      abs(cos(col('angle')))->as('abs_cos')
+      abs(cos(~angle))->as('abs_cos')
    ])
    ->from(table('trig_data'));
    
@@ -193,7 +193,7 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabaseSpecificFunctions(): 
 {
    // Create a time_bucket function (which has different names across databases)
    let df = select([
-      time_bucket(literal('1 hour'), col('event_time'))->as('hour_bucket')
+      time_bucket(literal('1 hour'), ~event_time)->as('hour_bucket')
    ])
    ->from(table('events'));
    
@@ -220,10 +220,10 @@ function <<test.Test>> meta::pure::dsl::tests::testConditionalFunctions(): Boole
 {
    // Create a DataFrame with conditional functions
    let df = select([
-      coalesce(col('value'), literal(0))->as('coalesced_value'),
-      nullif(col('value'), literal(0))->as('nullif_value'),
-      greatest(col('value1'), col('value2'), col('value3'))->as('greatest_value'),
-      least(col('value1'), col('value2'), col('value3'))->as('least_value')
+      coalesce(~value, literal(0))->as('coalesced_value'),
+      nullif(~value, literal(0))->as('nullif_value'),
+      greatest(~value1, ~value2, ~value3)->as('greatest_value'),
+      least(~value1, ~value2, ~value3)->as('least_value')
    ])
    ->from(table('data'));
    
@@ -273,10 +273,10 @@ function <<test.Test>> meta::pure::dsl::tests::testConversionFunctions(): Boolea
 {
    // Create a DataFrame with conversion functions
    let df = select([
-      cast(col('value'), literal('INTEGER'))->as('int_value'),
-      toNumber(col('string_value'))->as('numeric_value'),
-      toDate(col('date_string'), literal('YYYY-MM-DD'))->as('date_value'),
-      toTimestamp(col('timestamp_string'), literal('YYYY-MM-DD HH24:MI:SS'))->as('timestamp_value')
+      cast(~value, literal('INTEGER'))->as('int_value'),
+      toNumber(~string_value)->as('numeric_value'),
+      toDate(~date_string, literal('YYYY-MM-DD'))->as('date_value'),
+      toTimestamp(~timestamp_string, literal('YYYY-MM-DD HH24:MI:SS'))->as('timestamp_value')
    ])
    ->from(table('data'));
    
@@ -326,12 +326,12 @@ function <<test.Test>> meta::pure::dsl::tests::testNewMathFunctions(): Boolean[1
 {
    // Create a DataFrame with new math functions
    let df = select([
-      round(col('value'), literal(2))->as('rounded_value'),
-      ceiling(col('value'))->as('ceiling_value'),
-      floor(col('value'))->as('floor_value'),
-      log(col('value'))->as('log_value'),
-      ln(col('value'))->as('ln_value'),
-      mod(col('value'), literal(5))->as('mod_value')
+      round(~value, literal(2))->as('rounded_value'),
+      ceiling(~value)->as('ceiling_value'),
+      floor(~value)->as('floor_value'),
+      log(~value)->as('log_value'),
+      ln(~value)->as('ln_value'),
+      mod(~value, literal(5))->as('mod_value')
    ])
    ->from(table('data'));
    
@@ -394,8 +394,8 @@ function <<test.Test>> meta::pure::dsl::tests::testNewDateFunctions(): Boolean[1
    // Create a DataFrame with new date functions
    let df = select([
       currentDate()->as('today'),
-      dateAdd(literal('day'), col('date_value'), literal(7))->as('date_plus_7_days'),
-      dateSub(literal('month'), col('date_value'), literal(1))->as('date_minus_1_month')
+      dateAdd(literal('day'), ~date_value, literal(7))->as('date_plus_7_days'),
+      dateSub(literal('month'), ~date_value, literal(1))->as('date_minus_1_month')
    ])
    ->from(table('data'));
    
@@ -439,10 +439,10 @@ function <<test.Test>> meta::pure::dsl::tests::testNewStringFunctions(): Boolean
 {
    // Create a DataFrame with new string functions
    let df = select([
-      left(col('name'), literal(3))->as('name_left_3'),
-      right(col('name'), literal(3))->as('name_right_3'),
-      split(col('full_name'), literal(' '))->as('name_parts'),
-      regexpExtract(col('text'), literal('\\d+'))->as('extracted_numbers')
+      left(~name, literal(3))->as('name_left_3'),
+      right(~name, literal(3))->as('name_right_3'),
+      split(~full_name, literal(' '))->as('name_parts'),
+      regexpExtract(~text, literal('\\d+'))->as('extracted_numbers')
    ])
    ->from(table('users'));
    
@@ -492,9 +492,9 @@ function <<test.Test>> meta::pure::dsl::tests::testNestedNewFunctions(): Boolean
 {
    // Create a DataFrame with nested new functions
    let df = select([
-      ceiling(round(col('value'), literal(2)))->as('ceiling_of_rounded'),
-      coalesce(nullif(col('value'), literal(0)), literal(1))->as('safe_value'),
-      left(upper(col('name')), literal(3))->as('upper_left_3')
+      ceiling(round(~value, literal(2)))->as('ceiling_of_rounded'),
+      coalesce(nullif(~value, literal(0)), literal(1))->as('safe_value'),
+      left(upper(~name), literal(3))->as('upper_left_3')
    ])
    ->from(table('data'));
    

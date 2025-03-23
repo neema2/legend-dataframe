@@ -265,7 +265,7 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeExpress
 {
    $expr->match([
       l: LiteralExpression[1] | $l.value->generateSnowflakeLiteral(),
-      c: ColumnReference[1] | if($c.tableAlias->isNotEmpty(), $c.tableAlias->toOne() + '.', '') + $c.columnName,
+      c: ColumnReference[1] | if($c.tableAlias->isNotEmpty(), $c.tableAlias->toOne() + '.', '') + $c.colSpec.name,
       f: FunctionExpression[1] | $f->generateSnowflakeFunction(),
       b: BinaryOperation[1] | '(' + $b.left->generateSnowflakeExpression() + ' ' + $b.operator->generateSnowflakeBinaryOperator() + ' ' + $b.right->generateSnowflakeExpression() + ')',
       u: UnaryOperation[1] | $u.operator->generateSnowflakeUnaryOperator() + '(' + $u.expression->generateSnowflakeExpression() + ')',

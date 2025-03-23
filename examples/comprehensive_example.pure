@@ -59,14 +59,14 @@ function meta::pure::dsl::examples::comprehensiveExample(): String[1]
    // Create CTEs for monthly sales aggregation
    let monthlySalesCte = cte('monthly_sales',
       select([
-         as(extract('MONTH', col('order_date')), 'month'),
-         as(extract('YEAR', col('order_date')), 'year'),
-         as(sum(col('amount')), 'monthly_total')
+         as(extract('MONTH', ~order_date), 'month'),
+         as(extract('YEAR', ~order_date), 'year'),
+         as(sum(~amount), 'monthly_total')
       ])
       ->from(tableWithSchema('orders', $orderSchema))
       ->groupBy([
-         extract('MONTH', col('order_date')),
-         extract('YEAR', col('order_date'))
+         extract('MONTH', ~order_date),
+         extract('YEAR', ~order_date)
       ])
    );
    
@@ -98,17 +98,17 @@ function meta::pure::dsl::examples::comprehensiveExample(): String[1]
    
    // Main query using CTEs and window functions
    let df = select([
-      as(col('cr', 'customer_name'), 'customer'),
-      as(col('cr', 'region'), 'region'),
-      as(col('cr', 'total_spent'), 'total_spent'),
-      as(col('cr', 'rank_in_region'), 'regional_rank'),
-      as(col('ms', 'month'), 'month'),
-      as(col('ms', 'year'), 'year'),
-      as(col('ms', 'monthly_total'), 'monthly_sales'),
+      as(~('cr', 'customer_name'), 'customer'),
+      as(~('cr', 'region'), 'region'),
+      as(~('cr', 'total_spent'), 'total_spent'),
+      as(~('cr', 'rank_in_region'), 'regional_rank'),
+      as(~('ms', 'month'), 'month'),
+      as(~('ms', 'year'), 'year'),
+      as(~('ms', 'monthly_total'), 'monthly_sales'),
       as(over(
-         avg(col('ms', 'monthly_total')), 
-         partitionBy([col('cr', 'region')])
-            ->orderBy([asc(col('ms', 'year')), asc(col('ms', 'month'))])
+         avg(~('ms', 'monthly_total')), 
+         partitionBy([~('cr', 'region')])
+            ->orderBy([asc(~('ms', 'year')), asc(~('ms', 'month'))])
             ->rowsBetween(preceding(2), currentRow())
       ), 'three_month_moving_avg')
    ])
@@ -120,14 +120,14 @@ function meta::pure::dsl::examples::comprehensiveExample(): String[1]
    ))
    ->where(
       and([
-         eq(col('cr', 'rank_in_region'), literal(1)),
-         lt(col('ms', 'monthly_total'), literal(10000))
+         eq(~('cr', 'rank_in_region'), literal(1)),
+         lt(~('ms', 'monthly_total'), literal(10000))
       ])
    )
    ->orderBy([
-      asc(col('cr', 'region')),
-      asc(col('ms', 'year')),
-      asc(col('ms', 'month'))
+      asc(~('cr', 'region')),
+      asc(~('ms', 'year')),
+      asc(~('ms', 'month'))
    ])
    ->with([$monthlySalesCte, $customerRankingCte]);
    

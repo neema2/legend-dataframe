@@ -49,8 +49,8 @@ function <<functionType.Example>> meta::pure::dsl::examples::bigquery::exceptRep
    
    // Example of SELECT * REPLACE
    let replacements = newMap([
-      pair('salary', ^FunctionExpression(functionName = 'FORMAT', parameters = [col('salary'), literal('$%.2f')])),
-      pair('hire_date', ^FunctionExpression(functionName = 'FORMAT_DATE', parameters = [literal('%Y-%m-%d'), col('hire_date')]))
+      pair('salary', ^FunctionExpression(functionName = 'FORMAT', parameters = [~salary, literal('$%.2f')])),
+      pair('hire_date', ^FunctionExpression(functionName = 'FORMAT_DATE', parameters = [literal('%Y-%m-%d'), ~hire_date]))
    ]);
    
    let replaceExample = table('employees')

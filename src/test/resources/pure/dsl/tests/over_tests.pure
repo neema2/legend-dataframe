@@ -55,7 +55,7 @@ function <<test.Test>> meta::pure::dsl::tests::testNewOverFunction(): Boolean[1]
    let window5 = over([~department], [asc(~salary)], rows(unbounded(), 0));
    
    // Test SQL generation
-   let avgSalary = avg(col('salary'));
+   let avgSalary = avg(~salary);
    let rankExpr = rank();
    
    let dfWithWindow = $df
@@ -90,7 +90,7 @@ function <<test.Test>> meta::pure::dsl::tests::testFrameTypes(): Boolean[1]
    // Test with rows frame
    let window1 = over([asc(~id)], $rowsFrame);
    let dfWithRowsFrame = $df->extend([
-      sum(col('salary'))->over($window1)->as('running_sum')
+      sum(~salary)->over($window1)->as('running_sum')
    ]);
    
    let sql1 = $dfWithRowsFrame->generateDuckDBSQL();
@@ -99,7 +99,7 @@ function <<test.Test>> meta::pure::dsl::tests::testFrameTypes(): Boolean[1]
    // Test with range frame
    let window2 = over([asc(~id)], $rangeFrame);
    let dfWithRangeFrame = $df->extend([
-      avg(col('salary'))->over($window2)->as('moving_avg')
+      avg(~salary)->over($window2)->as('moving_avg')
    ]);
    
    let sql2 = $dfWithRangeFrame->generateDuckDBSQL();
@@ -136,9 +136,9 @@ function <<test.Test>> meta::pure::dsl::tests::testFrameValues(): Boolean[1]
    let window3 = over([asc(~id)], $frame3);
    
    let dfWithFrames = $df->extend([
-      sum(col('salary'))->over($window1)->as('sum1'),
-      sum(col('salary'))->over($window2)->as('sum2'),
-      sum(col('salary'))->over($window3)->as('sum3')
+      sum(~salary)->over($window1)->as('sum1'),
+      sum(~salary)->over($window2)->as('sum2'),
+      sum(~salary)->over($window3)->as('sum3')
    ]);
    
    let sql = $dfWithFrames->generateDuckDBSQL();
@@ -165,7 +165,7 @@ function <<test.Test>> meta::pure::dsl::tests::testSnowflakeWindowSQL(): Boolean
    
    let dfWithWindow = $df->extend([
       rank()->over($window)->as('rank'),
-      avg(col('salary'))->over($window)->as('avg_salary')
+      avg(~salary)->over($window)->as('avg_salary')
    ]);
    
    let sql = $dfWithWindow->generateSnowflakeSQL();

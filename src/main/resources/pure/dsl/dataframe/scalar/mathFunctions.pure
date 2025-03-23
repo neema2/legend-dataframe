@@ -1,0 +1,161 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::scalar::*;
+import meta::pure::dsl::dataframe::scalar::*;
+
+/**
+ * Implementation of math scalar functions for DataFrame DSL
+ */
+
+// Initialize math functions in the scalar function registry
+function meta::pure::dsl::dataframe::scalar::initializeMathFunctions(registry: Map<String, ScalarFunctionImplementation>[1]): Map<String, ScalarFunctionImplementation>[1]
+{
+   // Absolute value function
+   $registry->put('abs', ^ScalarFunctionImplementation(
+      standardName = 'ABS',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'ABS'),
+         pair(Database.DUCKDB, 'ABS'),
+         pair(Database.BIGQUERY, 'ABS'),
+         pair(Database.DATABRICKS, 'ABS'),
+         pair(Database.REDSHIFT, 'ABS'),
+         pair(Database.POSTGRES, 'ABS')
+      ])
+   ));
+   
+   // Cosine function
+   $registry->put('cos', ^ScalarFunctionImplementation(
+      standardName = 'COS',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'COS'),
+         pair(Database.DUCKDB, 'COS'),
+         pair(Database.BIGQUERY, 'COS'),
+         pair(Database.DATABRICKS, 'COS'),
+         pair(Database.REDSHIFT, 'COS'),
+         pair(Database.POSTGRES, 'COS')
+      ])
+   ));
+   
+   // Sine function
+   $registry->put('sin', ^ScalarFunctionImplementation(
+      standardName = 'SIN',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'SIN'),
+         pair(Database.DUCKDB, 'SIN'),
+         pair(Database.BIGQUERY, 'SIN'),
+         pair(Database.DATABRICKS, 'SIN'),
+         pair(Database.REDSHIFT, 'SIN'),
+         pair(Database.POSTGRES, 'SIN')
+      ])
+   ));
+   
+   // Tangent function
+   $registry->put('tan', ^ScalarFunctionImplementation(
+      standardName = 'TAN',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'TAN'),
+         pair(Database.DUCKDB, 'TAN'),
+         pair(Database.BIGQUERY, 'TAN'),
+         pair(Database.DATABRICKS, 'TAN'),
+         pair(Database.REDSHIFT, 'TAN'),
+         pair(Database.POSTGRES, 'TAN')
+      ])
+   ));
+   
+   // Square root function
+   $registry->put('sqrt', ^ScalarFunctionImplementation(
+      standardName = 'SQRT',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'SQRT'),
+         pair(Database.DUCKDB, 'SQRT'),
+         pair(Database.BIGQUERY, 'SQRT'),
+         pair(Database.DATABRICKS, 'SQRT'),
+         pair(Database.REDSHIFT, 'SQRT'),
+         pair(Database.POSTGRES, 'SQRT')
+      ])
+   ));
+   
+   // Power function
+   $registry->put('power', ^ScalarFunctionImplementation(
+      standardName = 'POWER',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'POWER'),
+         pair(Database.DUCKDB, 'POWER'),
+         pair(Database.BIGQUERY, 'POWER'),
+         pair(Database.DATABRICKS, 'POWER'),
+         pair(Database.REDSHIFT, 'POWER'),
+         pair(Database.POSTGRES, 'POWER')
+      ])
+   ));
+   
+   $registry;
+}
+
+// Factory functions for creating math scalar functions
+function meta::pure::dsl::dataframe::abs(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'abs',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('abs')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::cos(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'cos',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('cos')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::sin(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'sin',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('sin')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::tan(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'tan',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('tan')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::sqrt(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'sqrt',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('sqrt')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::power(base: Expression[1], exponent: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'power',
+      parameters = [$base, $exponent],
+      implementation = scalarFunctionRegistry()->get('power')->toOne()
+   );
+}

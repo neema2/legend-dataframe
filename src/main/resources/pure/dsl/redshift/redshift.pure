@@ -197,6 +197,7 @@ function <<access.private>> meta::pure::dsl::redshift::generateRedshiftFunction(
       c: CountFunction[1] | 'COUNT(' + if($c.distinct == true, 'DISTINCT ', '') + $c.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + ')',
       a: AggregateFunction[1] | $a.functionName->toUpperCase() + '(' + $a.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + ')',
       w: WindowFunction[1] | $w->generateRedshiftWindowFunction(),
+      s: ScalarFunction[1] | meta::pure::dsl::dataframe::generateScalarFunctionSQL($s, Database.REDSHIFT, {e | generateRedshiftExpression($e)}),
       f: FunctionExpression[1] | $f.functionName + '(' + $f.parameters->map(p | $p->generateRedshiftExpression())->joinStrings(', ') + ')'
    ])
 }

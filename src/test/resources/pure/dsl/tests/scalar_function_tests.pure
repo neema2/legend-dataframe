@@ -1,0 +1,217 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::scalar::*;
+import meta::pure::dsl::dataframe::scalar::*;
+import meta::pure::dsl::snowflake::*;
+import meta::pure::dsl::duckdb::*;
+import meta::pure::dsl::bigquery::*;
+import meta::pure::dsl::databricks::*;
+import meta::pure::dsl::redshift::*;
+import meta::pure::dsl::postgres::*;
+
+/**
+ * Tests for scalar function SQL generation across database dialects
+ */
+
+function <<test.Test>> meta::pure::dsl::tests::testCommonMathFunctions(): Boolean[1]
+{
+   // Create a DataFrame with math functions
+   let df = select([
+      abs(col('value'))->as('abs_value'),
+      cos(col('angle'))->as('cos_angle')
+   ])
+   ->from(table('data'));
+   
+   // Test SQL generation across all supported databases
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
+   let redshiftSQL = $df->generateRedshiftSQL();
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL contains expected syntax
+   assertEquals(true, $snowflakeSQL->contains('ABS(value) AS abs_value'));
+   assertEquals(true, $snowflakeSQL->contains('COS(angle) AS cos_angle'));
+   
+   assertEquals(true, $duckdbSQL->contains('ABS(value) AS abs_value'));
+   assertEquals(true, $duckdbSQL->contains('COS(angle) AS cos_angle'));
+   
+   assertEquals(true, $bigquerySQL->contains('ABS(value) AS abs_value'));
+   assertEquals(true, $bigquerySQL->contains('COS(angle) AS cos_angle'));
+   
+   assertEquals(true, $databricksSQL->contains('ABS(value) AS abs_value'));
+   assertEquals(true, $databricksSQL->contains('COS(angle) AS cos_angle'));
+   
+   assertEquals(true, $redshiftSQL->contains('ABS(value) AS abs_value'));
+   assertEquals(true, $redshiftSQL->contains('COS(angle) AS cos_angle'));
+   
+   assertEquals(true, $postgresSQL->contains('ABS(value) AS abs_value'));
+   assertEquals(true, $postgresSQL->contains('COS(angle) AS cos_angle'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testDateFunctionsWithVaryingSyntax(): Boolean[1]
+{
+   // Create a DataFrame with date functions
+   let df = select([
+      datediff(literal('day'), col('start_date'), col('end_date'))->as('days_diff')
+   ])
+   ->from(table('date_data'));
+   
+   // Test SQL generation across all supported databases
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
+   let redshiftSQL = $df->generateRedshiftSQL();
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL contains expected database-specific syntax
+   assertEquals(true, $snowflakeSQL->contains('DATEDIFF(\'day\', start_date, end_date) AS days_diff'));
+   assertEquals(true, $duckdbSQL->contains('DATEDIFF(\'day\', start_date, end_date) AS days_diff'));
+   assertEquals(true, $bigquerySQL->contains('DATE_DIFF(\'day\', start_date, end_date) AS days_diff'));
+   assertEquals(true, $databricksSQL->contains('DATEDIFF(\'day\', start_date, end_date) AS days_diff'));
+   assertEquals(true, $redshiftSQL->contains('DATEDIFF(\'day\', start_date, end_date) AS days_diff'));
+   assertEquals(true, $postgresSQL->contains('DATE_PART(\'day\', (end_date - start_date)) AS days_diff'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testStringFunctions(): Boolean[1]
+{
+   // Create a DataFrame with string functions
+   let df = select([
+      upper(col('name'))->as('upper_name'),
+      lower(col('name'))->as('lower_name'),
+      length(col('name'))->as('name_length')
+   ])
+   ->from(table('users'));
+   
+   // Test SQL generation across all supported databases
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
+   let redshiftSQL = $df->generateRedshiftSQL();
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL contains expected syntax
+   assertEquals(true, $snowflakeSQL->contains('UPPER(name) AS upper_name'));
+   assertEquals(true, $snowflakeSQL->contains('LOWER(name) AS lower_name'));
+   assertEquals(true, $snowflakeSQL->contains('LENGTH(name) AS name_length'));
+   
+   assertEquals(true, $duckdbSQL->contains('UPPER(name) AS upper_name'));
+   assertEquals(true, $duckdbSQL->contains('LOWER(name) AS lower_name'));
+   assertEquals(true, $duckdbSQL->contains('LENGTH(name) AS name_length'));
+   
+   assertEquals(true, $bigquerySQL->contains('UPPER(name) AS upper_name'));
+   assertEquals(true, $bigquerySQL->contains('LOWER(name) AS lower_name'));
+   assertEquals(true, $bigquerySQL->contains('LENGTH(name) AS name_length'));
+   
+   assertEquals(true, $databricksSQL->contains('UPPER(name) AS upper_name'));
+   assertEquals(true, $databricksSQL->contains('LOWER(name) AS lower_name'));
+   assertEquals(true, $databricksSQL->contains('LENGTH(name) AS name_length'));
+   
+   assertEquals(true, $redshiftSQL->contains('UPPER(name) AS upper_name'));
+   assertEquals(true, $redshiftSQL->contains('LOWER(name) AS lower_name'));
+   assertEquals(true, $redshiftSQL->contains('LENGTH(name) AS name_length'));
+   
+   assertEquals(true, $postgresSQL->contains('UPPER(name) AS upper_name'));
+   assertEquals(true, $postgresSQL->contains('LOWER(name) AS lower_name'));
+   assertEquals(true, $postgresSQL->contains('LENGTH(name) AS name_length'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testNestedScalarFunctions(): Boolean[1]
+{
+   // Create a DataFrame with nested scalar functions
+   let df = select([
+      abs(cos(col('angle')))->as('abs_cos')
+   ])
+   ->from(table('trig_data'));
+   
+   // Test SQL generation across all supported databases
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
+   let redshiftSQL = $df->generateRedshiftSQL();
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL contains expected nested function syntax
+   assertEquals(true, $snowflakeSQL->contains('ABS(COS(angle)) AS abs_cos'));
+   assertEquals(true, $duckdbSQL->contains('ABS(COS(angle)) AS abs_cos'));
+   assertEquals(true, $bigquerySQL->contains('ABS(COS(angle)) AS abs_cos'));
+   assertEquals(true, $databricksSQL->contains('ABS(COS(angle)) AS abs_cos'));
+   assertEquals(true, $redshiftSQL->contains('ABS(COS(angle)) AS abs_cos'));
+   assertEquals(true, $postgresSQL->contains('ABS(COS(angle)) AS abs_cos'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testScalarFunctionRegistryConsistency(): Boolean[1]
+{
+   // Get the scalar function registry
+   let registry = scalarFunctionRegistry();
+   
+   // Verify all implemented functions support all 6 databases
+   let absImplementation = $registry->get('abs')->toOne();
+   assertEquals(6, $absImplementation.databases->keys()->size());
+   assertEquals(true, $absImplementation.databases->containsKey(Database.SNOWFLAKE));
+   assertEquals(true, $absImplementation.databases->containsKey(Database.DUCKDB));
+   assertEquals(true, $absImplementation.databases->containsKey(Database.BIGQUERY));
+   assertEquals(true, $absImplementation.databases->containsKey(Database.DATABRICKS));
+   assertEquals(true, $absImplementation.databases->containsKey(Database.REDSHIFT));
+   assertEquals(true, $absImplementation.databases->containsKey(Database.POSTGRES));
+   
+   // Verify datediff has parameter transformations for Postgres
+   let datediffImplementation = $registry->get('datediff')->toOne();
+   assertEquals(true, $datediffImplementation.parameterTransformations->isNotEmpty());
+   assertEquals(true, $datediffImplementation.parameterTransformations->toOne()->containsKey(Database.POSTGRES));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testDatabaseSpecificFunctions(): Boolean[1]
+{
+   // Create a time_bucket function (which has different names across databases)
+   let df = select([
+      time_bucket(literal('1 hour'), col('event_time'))->as('hour_bucket')
+   ])
+   ->from(table('events'));
+   
+   // Test SQL generation across all supported databases
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
+   let redshiftSQL = $df->generateRedshiftSQL();
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL contains expected database-specific syntax
+   assertEquals(true, $snowflakeSQL->contains('TIME_SLICE(\'1 hour\', event_time) AS hour_bucket'));
+   assertEquals(true, $duckdbSQL->contains('TIME_BUCKET(\'1 hour\', event_time) AS hour_bucket'));
+   assertEquals(true, $bigquerySQL->contains('TIMESTAMP_TRUNC(event_time, \'1 hour\') AS hour_bucket'));
+   assertEquals(true, $databricksSQL->contains('DATE_TRUNC(\'1 hour\', event_time) AS hour_bucket'));
+   assertEquals(true, $redshiftSQL->contains('DATE_TRUNC(\'1 hour\', event_time) AS hour_bucket'));
+   assertEquals(true, $postgresSQL->contains('DATE_BIN(\'1 hour\', event_time, \'1970-01-01\'::timestamp) AS hour_bucket'));
+   
+   true;
+}

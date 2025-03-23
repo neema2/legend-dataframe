@@ -828,12 +828,12 @@ function meta::pure::dsl::dataframe::over(expr: Expression[1], window: Window[1]
 // OrderBy helper functions
 function meta::pure::dsl::dataframe::asc<T>(col: ColSpec<T>[1]): OrderByClause[1]
 {
-   ^OrderByClause(expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $col.name)), direction = SortDirection.ASC);
+   ^OrderByClause(expression = ^ColumnReference(colSpec = $col), direction = SortDirection.ASC);
 }
 
 function meta::pure::dsl::dataframe::desc<T>(col: ColSpec<T>[1]): OrderByClause[1]
 {
-   ^OrderByClause(expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $col.name)), direction = SortDirection.DESC);
+   ^OrderByClause(expression = ^ColumnReference(colSpec = $col), direction = SortDirection.DESC);
 }
 
 function meta::pure::dsl::dataframe::getFunctionName(expr: Expression[1]): String[1]
@@ -932,7 +932,7 @@ function meta::pure::dsl::dataframe::partitionBy(columns: Expression[*]): Window
 
 function meta::pure::dsl::dataframe::partitionBy<T>(columns: ColSpec<T>[*]): Window[1]
 {
-   ^Window(partitionBy = $columns->map(c | ~$c.name), orderBy = []);
+   ^Window(partitionBy = $columns->map(c | ^ColumnReference(colSpec = $c)), orderBy = []);
 }
 
 function meta::pure::dsl::dataframe::orderBy(window: Window[1], clauses: OrderByClause[*]): Window[1]
@@ -1162,7 +1162,7 @@ function meta::pure::dsl::dataframe::fromTDS<T>(tds: TDS<T>[1]): DataFrame[1]
    
    // Create columns from TDS
    let columns = $columnNames->map(name | 
-      ^Column(name = $name, expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $name)), alias = $name)
+      ^Column(name = $name, expression = ^ColumnReference(colSpec = ^ColSpec<T>(name = $name)), alias = $name)
    );
    
    // Create DataFrame from TDS
@@ -1183,7 +1183,7 @@ function meta::pure::dsl::dataframe::parseTDSLiteral(tdsText: String[1]): DataFr
    
    // Create columns
    let columns = $columnNames->map(name | 
-      ^Column(name = $name, expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $name)), alias = $name)
+      ^Column(name = $name, expression = ^ColumnReference(colSpec = ^ColSpec<T>(name = $name)), alias = $name)
    );
    
    // Create DataFrame

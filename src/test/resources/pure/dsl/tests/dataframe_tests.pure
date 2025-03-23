@@ -428,7 +428,7 @@ function <<test.Test>> meta::pure::dsl::tests::testCommonTableExpressions(): Boo
       table('customers', 'c'),
       table('orders', 'o'),
       JoinType.INNER,
-      eq(col('c', 'id'), col('o', 'customer_id'))
+      {c, o | $c.id == $o.customer_id}
    ))
    ->groupBy([col('c', 'name')])
    ->with([$customerCte, $orderCte]);
@@ -454,7 +454,7 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabricksSQL(): Boolean[1]
    let df = select([
       as(col('c', 'name'), 'customer_name'),
       as(col('c', 'age'), 'customer_age')
-   ])->from(tableAs('customers', 'c'))->where(gt(col('c', 'age'), literal(30)));
+   ])->from(tableAs('customers', 'c'))->filter({x | $x.c.age > 30});
    
    // Generate Databricks SQL
    let databricksSQL = $df->generateDatabricksSQL();
@@ -481,7 +481,7 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabricksQualify(): Boolean[
       as(rowNumber()->over(partitionBy([col('c', 'region')]), orderBy([desc(col('c', 'sales'))])), 'sales_rank')
    ])
    ->from(tableAs('customers', 'c'))
-   ->qualify(lte(col('sales_rank'), literal(3))); // Only keep top 3 customers by sales in each region
+   ->qualify({x | $x.sales_rank <= 3}); // Only keep top 3 customers by sales in each region
    
    // Generate Databricks SQL
    let databricksSQL = $df->generateDatabricksSQL();

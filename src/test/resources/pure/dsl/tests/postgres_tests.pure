@@ -203,7 +203,7 @@ function <<test.Test>> meta::pure::dsl::tests::testPostgresWithCTE(): Boolean[1]
    ->from(join(
       tableAs('customers', 'c'),
       tableAs('orders', 'o'),
-      eq(col('c', 'id'), col('o', 'customer_id'))
+      {c, o | $c.id == $o.customer_id}
    ))
    ->groupBy([col('c', 'name')])
    ->with([$customerCte, $orderCte]);

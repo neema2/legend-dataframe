@@ -27,7 +27,7 @@ function <<meta::pure::profiles::test.Test>> {meta.pure.profiles.test.AlloyOnly}
       as(col('salary'), 'salary')
    ])
    ->from(table('employees'))
-   ->qualify(lt($windowFunc, 3));
+   ->qualify({x | $windowFunc < 3});
    
    // Test SQL generation
    let sql = $df->toSQL(Database.DATABRICKS);

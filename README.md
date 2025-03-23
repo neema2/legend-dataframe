@@ -51,8 +51,8 @@ legend-dataframe/
 // Create a DataFrame from a table
 let df = table('employees');
 
-// Filter rows using type-safe filter function
-let filtered = $df->filter({x | $x.salary > 50000});
+// Filter rows using type-safe filter function with Pure built-ins
+let filtered = $df->filter({x | $x.salary > 50000 && $x.department == 'Engineering'});
 
 // Select specific columns
 let selected = $df->select({x | [~id, ~name, ~salary]});

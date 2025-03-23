@@ -19,7 +19,7 @@ function meta::pure::dsl::examples::basicOperations(): Any[*]
    // Create a DataFrame from a table
    let employees = table('employees');
    
-   // Filter rows using type-safe filter function with lambda
+   // Filter rows using type-safe filter function with lambda and Pure built-ins
    let highPaid = $employees->filter({e | $e.salary > 50000});
    
    // Select specific columns using tilde notation

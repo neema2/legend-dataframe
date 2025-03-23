@@ -45,11 +45,11 @@ function <<test.Test>> meta::pure::dsl::tests::testSimpleSelect(): Boolean[1]
 
 function <<test.Test>> meta::pure::dsl::tests::testSelectWithFilter(): Boolean[1]
 {
-   // Create a SELECT query with WHERE clause
+   // Create a SELECT query with filter using Pure built-ins
    let df = select([
       as(col('id'), 'id'),
       as(col('name'), 'name')
-   ])->from(table('customers'))->where(eq(col('id'), literal(100)));
+   ])->from(table('customers'))->filter({x | $x.id == 100});
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -73,7 +73,7 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithJoin(): Boolean[1]
       join(
          tableAs('customers', 'c'),
          tableAs('orders', 'o'),
-         eq(col('c', 'id'), col('o', 'customer_id'))
+         {c, o | $c.id == $o.customer_id}
       )
    );
    
@@ -157,18 +157,11 @@ function <<test.Test>> meta::pure::dsl::tests::testComplexQuery(): Boolean[1]
       leftJoin(
          tableAs('categories', 'c'),
          tableAs('orders', 'o'),
-         eq(col('c', 'id'), col('o', 'category_id'))
+         {c, o | $c.id == $o.category_id}
       )
-   )->where(
-      and(
-         gt(col('o', 'amount'), literal(100)),
-         isNotNull(col('o', 'customer_id'))
-      )
-   )->groupBy([
+   )->filter({x | $x.o.amount > 100 && $x.o.customer_id != null})->groupBy([
       col('c', 'category')
-   ])->having(
-      gt(count(col('o', 'id')), literal(5))
-   )->orderBy([
+   ])->having({x | count(col('o', 'id')) > 5})->orderBy([
       desc(sum(col('o', 'amount')))
    ])->limit(5);
    
@@ -208,7 +201,7 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabaseSpecificSyntaxDiffere
       leftJoin(
          tableAs('customers', 'c'),
          tableAs('orders', 'o'),
-         eq(col('c', 'id'), col('o', 'customer_id'))
+         {c, o | $c.id == $o.customer_id}
       )
    );
    

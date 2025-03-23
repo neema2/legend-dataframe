@@ -404,7 +404,16 @@ function meta::pure::dsl::dataframe::from(df: DataFrame[1], source: DataSource[1
    ^$df(source = $source)
 }
 
-// Type-safe filter function
+/**
+ * Type-safe filter function that takes a lambda expression. 
+ * Use Pure language built-ins for comparisons within the lambda instead of custom operators.
+ * Examples:
+ * - $df->filter({x | $x.salary > 50000})           // Greater than
+ * - $df->filter({x | $x.name == 'John'})           // Equals
+ * - $df->filter({x | $x.age != 30})                // Not equals
+ * - $df->filter({x | $x.dept == 'HR' && $x.age > 40}) // AND condition
+ * - $df->filter({x | $x.region == 'East' || $x.status == 'Active'}) // OR condition
+ */
 function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], condition: Function<{T[1]->Boolean[1]}>[1]): DataFrame[1]
 {
    ^$df(filter = $condition)
@@ -541,66 +550,7 @@ function meta::pure::dsl::dataframe::as(expr: Expression[1], alias: String[1]): 
    ^Column(name = $alias, expression = $expr, alias = $alias)
 }
 
-// Helper functions for creating conditions
-function meta::pure::dsl::dataframe::eq(left: Expression[1], right: Expression[1]): BinaryOperation[1]
-{
-   ^BinaryOperation(left = $left, operator = BinaryOperator.EQUALS, right = $right)
-}
-
-function meta::pure::dsl::dataframe::neq(left: Expression[1], right: Expression[1]): BinaryOperation[1]
-{
-   ^BinaryOperation(left = $left, operator = BinaryOperator.NOT_EQUALS, right = $right)
-}
-
-function meta::pure::dsl::dataframe::gt(left: Expression[1], right: Expression[1]): BinaryOperation[1]
-{
-   ^BinaryOperation(left = $left, operator = BinaryOperator.GREATER_THAN, right = $right)
-}
-
-function meta::pure::dsl::dataframe::lt(left: Expression[1], right: Expression[1]): BinaryOperation[1]
-{
-   ^BinaryOperation(left = $left, operator = BinaryOperator.LESS_THAN, right = $right)
-}
-
-function meta::pure::dsl::dataframe::gte(left: Expression[1], right: Expression[1]): BinaryOperation[1]
-{
-   ^BinaryOperation(left = $left, operator = BinaryOperator.GREATER_THAN_OR_EQUALS, right = $right)
-}
-
-function meta::pure::dsl::dataframe::lte(left: Expression[1], right: Expression[1]): BinaryOperation[1]
-{
-   ^BinaryOperation(left = $left, operator = BinaryOperator.LESS_THAN_OR_EQUALS, right = $right)
-}
-
-function meta::pure::dsl::dataframe::and(left: FilterCondition[1], right: FilterCondition[1]): BinaryOperation[1]
-{
-   ^BinaryOperation(left = $left, operator = BinaryOperator.AND, right = $right)
-}
-
-function meta::pure::dsl::dataframe::or(left: FilterCondition[1], right: FilterCondition[1]): BinaryOperation[1]
-{
-   ^BinaryOperation(left = $left, operator = BinaryOperator.OR, right = $right)
-}
-
-function meta::pure::dsl::dataframe::not(expr: FilterCondition[1]): UnaryOperation[1]
-{
-   ^UnaryOperation(operator = UnaryOperator.NOT, expression = $expr)
-}
-
-function meta::pure::dsl::dataframe::like(expr: Expression[1], pattern: String[1]): BinaryOperation[1]
-{
-   ^BinaryOperation(left = $expr, operator = BinaryOperator.LIKE, right = ^LiteralExpression(value = $pattern))
-}
-
-function meta::pure::dsl::dataframe::isNull(expr: Expression[1]): BinaryOperation[1]
-{
-   ^BinaryOperation(left = $expr, operator = BinaryOperator.IS_NULL, right = ^LiteralExpression(value = 'null'))
-}
-
-function meta::pure::dsl::dataframe::isNotNull(expr: Expression[1]): BinaryOperation[1]
-{
-   ^BinaryOperation(left = $expr, operator = BinaryOperator.IS_NOT_NULL, right = ^LiteralExpression(value = 'null'))
-}
+// Helper functions for creating data sources
 
 // Helper functions for creating data sources
 function meta::pure::dsl::dataframe::table(name: String[1]): TableReference[1]

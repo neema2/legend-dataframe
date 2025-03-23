@@ -165,10 +165,10 @@ function <<test.Test>> meta::pure::dsl::tests::testTypeSafeFilter(): Boolean[1]
    // Create a table with schema
    let productsTable = tableWithSchema('products', $productSchema);
    
-   // Test filter with type-safe columns
+   // Test filter with type-safe columns using Pure built-ins
    let df = select(~($productSchema, ['id', 'name', 'price']))
       ->from($productsTable)
-      ->where(eq(~($productSchema, 'category'), literal('Electronics')));
+      ->filter({x | $x.category == 'Electronics'});
    
    // Generate SQL for Snowflake and verify
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -299,7 +299,7 @@ function <<test.Test>> meta::pure::dsl::tests::testTypeSafeJoin(): Boolean[1]
       $ordersDf, 
       $customersDf, 
       JoinType.INNER, 
-      eq(col('o', 'customer_id'), col('c', 'id'))
+      {o, c | $o.customer_id == $c.id}
    );
    
    // Generate SQL for Snowflake and verify

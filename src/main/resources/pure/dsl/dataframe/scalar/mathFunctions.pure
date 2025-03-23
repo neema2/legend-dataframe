@@ -102,6 +102,84 @@ function meta::pure::dsl::dataframe::scalar::initializeMathFunctions(registry: M
       ])
    ));
    
+   // ROUND function
+   $registry->put('round', ^ScalarFunctionImplementation(
+      standardName = 'ROUND',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'ROUND'),
+         pair(Database.DUCKDB, 'ROUND'),
+         pair(Database.BIGQUERY, 'ROUND'),
+         pair(Database.DATABRICKS, 'ROUND'),
+         pair(Database.REDSHIFT, 'ROUND'),
+         pair(Database.POSTGRES, 'ROUND')
+      ])
+   ));
+   
+   // CEILING function
+   $registry->put('ceiling', ^ScalarFunctionImplementation(
+      standardName = 'CEILING',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'CEILING'),
+         pair(Database.DUCKDB, 'CEILING'),
+         pair(Database.BIGQUERY, 'CEIL'),
+         pair(Database.DATABRICKS, 'CEILING'),
+         pair(Database.REDSHIFT, 'CEILING'),
+         pair(Database.POSTGRES, 'CEILING')
+      ])
+   ));
+   
+   // FLOOR function
+   $registry->put('floor', ^ScalarFunctionImplementation(
+      standardName = 'FLOOR',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'FLOOR'),
+         pair(Database.DUCKDB, 'FLOOR'),
+         pair(Database.BIGQUERY, 'FLOOR'),
+         pair(Database.DATABRICKS, 'FLOOR'),
+         pair(Database.REDSHIFT, 'FLOOR'),
+         pair(Database.POSTGRES, 'FLOOR')
+      ])
+   ));
+   
+   // LOG function (base 10)
+   $registry->put('log', ^ScalarFunctionImplementation(
+      standardName = 'LOG',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'LOG'),
+         pair(Database.DUCKDB, 'LOG10'),
+         pair(Database.BIGQUERY, 'LOG10'),
+         pair(Database.DATABRICKS, 'LOG10'),
+         pair(Database.REDSHIFT, 'LOG10'),
+         pair(Database.POSTGRES, 'LOG10')
+      ])
+   ));
+   
+   // LN function (natural log)
+   $registry->put('ln', ^ScalarFunctionImplementation(
+      standardName = 'LN',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'LN'),
+         pair(Database.DUCKDB, 'LN'),
+         pair(Database.BIGQUERY, 'LN'),
+         pair(Database.DATABRICKS, 'LN'),
+         pair(Database.REDSHIFT, 'LN'),
+         pair(Database.POSTGRES, 'LN')
+      ])
+   ));
+   
+   // MOD function
+   $registry->put('mod', ^ScalarFunctionImplementation(
+      standardName = 'MOD',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'MOD'),
+         pair(Database.DUCKDB, 'MOD'),
+         pair(Database.BIGQUERY, 'MOD'),
+         pair(Database.DATABRICKS, 'MOD'),
+         pair(Database.REDSHIFT, 'MOD'),
+         pair(Database.POSTGRES, 'MOD')
+      ])
+   ));
+   
    $registry;
 }
 
@@ -157,5 +235,59 @@ function meta::pure::dsl::dataframe::power(base: Expression[1], exponent: Expres
       functionName = 'power',
       parameters = [$base, $exponent],
       implementation = scalarFunctionRegistry()->get('power')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::round(expr: Expression[1], precision: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'round',
+      parameters = [$expr, $precision],
+      implementation = scalarFunctionRegistry()->get('round')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::ceiling(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'ceiling',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('ceiling')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::floor(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'floor',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('floor')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::log(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'log',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('log')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::ln(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'ln',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('ln')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::mod(dividend: Expression[1], divisor: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'mod',
+      parameters = [$dividend, $divisor],
+      implementation = scalarFunctionRegistry()->get('mod')->toOne()
    );
 }

@@ -108,6 +108,154 @@ function meta::pure::dsl::dataframe::scalar::initializeDateFunctions(registry: M
       ])
    ));
    
+   // CURRENT_DATE function
+   $registry->put('current_date', ^ScalarFunctionImplementation(
+      standardName = 'CURRENT_DATE',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'CURRENT_DATE'),
+         pair(Database.DUCKDB, 'CURRENT_DATE'),
+         pair(Database.BIGQUERY, 'CURRENT_DATE'),
+         pair(Database.DATABRICKS, 'CURRENT_DATE'),
+         pair(Database.REDSHIFT, 'CURRENT_DATE'),
+         pair(Database.POSTGRES, 'CURRENT_DATE')
+      ])
+   ));
+   
+   // DATE_ADD function with varying syntax
+   $registry->put('date_add', ^ScalarFunctionImplementation(
+      standardName = 'DATE_ADD',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'DATEADD'),
+         pair(Database.DUCKDB, 'DATEADD'),
+         pair(Database.BIGQUERY, 'DATE_ADD'),
+         pair(Database.DATABRICKS, 'DATE_ADD'),
+         pair(Database.REDSHIFT, 'DATEADD'),
+         pair(Database.POSTGRES, 'CAST')
+      ]),
+      parameterTransformations = newMap([
+         // For Snowflake, Redshift and DuckDB, the order is (part, amount, date)
+         pair(Database.SNOWFLAKE, {params: Expression[*] | 
+            if($params->size() >= 3,
+               [$params->at(0), $params->at(2), $params->at(1)],
+               $params
+            )
+         }),
+         pair(Database.DUCKDB, {params: Expression[*] | 
+            if($params->size() >= 3,
+               [$params->at(0), $params->at(2), $params->at(1)],
+               $params
+            )
+         }),
+         pair(Database.REDSHIFT, {params: Expression[*] | 
+            if($params->size() >= 3,
+               [$params->at(0), $params->at(2), $params->at(1)],
+               $params
+            )
+         }),
+         // For Postgres, use interval
+         pair(Database.POSTGRES, {params: Expression[*] | 
+            if($params->size() >= 3,
+               [
+                  ^BinaryOperation(
+                     left = $params->at(1),
+                     operator = BinaryOperator.ADD,
+                     right = ^FunctionExpression(
+                        functionName = 'CAST',
+                        parameters = [
+                           ^BinaryOperation(
+                              left = $params->at(2),
+                              operator = BinaryOperator.CONCATENATE,
+                              right = ^LiteralExpression(value = ' ' + $params->at(0)->cast(@LiteralExpression).value->toString())
+                           ),
+                           ^LiteralExpression(value = 'AS INTERVAL')
+                        ]
+                     )
+                  )
+               ],
+               $params
+            )
+         })
+      ])
+   ));
+   
+   // DATE_SUB function with varying syntax
+   $registry->put('date_sub', ^ScalarFunctionImplementation(
+      standardName = 'DATE_SUB',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'DATEADD'),
+         pair(Database.DUCKDB, 'DATEADD'),
+         pair(Database.BIGQUERY, 'DATE_SUB'),
+         pair(Database.DATABRICKS, 'DATE_SUB'),
+         pair(Database.REDSHIFT, 'DATEADD'),
+         pair(Database.POSTGRES, 'CAST')
+      ]),
+      parameterTransformations = newMap([
+         // For Snowflake, Redshift and DuckDB, negate the amount
+         pair(Database.SNOWFLAKE, {params: Expression[*] | 
+            if($params->size() >= 3,
+               [
+                  $params->at(0),
+                  $params->at(1),
+                  ^UnaryOperation(
+                     operator = UnaryOperator.MINUS,
+                     expression = $params->at(2)
+                  )
+               ],
+               $params
+            )
+         }),
+         pair(Database.DUCKDB, {params: Expression[*] | 
+            if($params->size() >= 3,
+               [
+                  $params->at(0),
+                  $params->at(1),
+                  ^UnaryOperation(
+                     operator = UnaryOperator.MINUS,
+                     expression = $params->at(2)
+                  )
+               ],
+               $params
+            )
+         }),
+         pair(Database.REDSHIFT, {params: Expression[*] | 
+            if($params->size() >= 3,
+               [
+                  $params->at(0),
+                  $params->at(1),
+                  ^UnaryOperation(
+                     operator = UnaryOperator.MINUS,
+                     expression = $params->at(2)
+                  )
+               ],
+               $params
+            )
+         }),
+         // For Postgres, use interval with negation
+         pair(Database.POSTGRES, {params: Expression[*] | 
+            if($params->size() >= 3,
+               [
+                  ^BinaryOperation(
+                     left = $params->at(1),
+                     operator = BinaryOperator.SUBTRACT,
+                     right = ^FunctionExpression(
+                        functionName = 'CAST',
+                        parameters = [
+                           ^BinaryOperation(
+                              left = $params->at(2),
+                              operator = BinaryOperator.CONCATENATE,
+                              right = ^LiteralExpression(value = ' ' + $params->at(0)->cast(@LiteralExpression).value->toString())
+                           ),
+                           ^LiteralExpression(value = 'AS INTERVAL')
+                        ]
+                     )
+                  )
+               ],
+               $params
+            )
+         })
+      ])
+   ));
+   
    $registry;
 }
 
@@ -145,5 +293,32 @@ function meta::pure::dsl::dataframe::time_bucket(interval: Expression[1], timest
       functionName = 'time_bucket',
       parameters = [$interval, $timestamp],
       implementation = scalarFunctionRegistry()->get('time_bucket')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::currentDate(): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'current_date',
+      parameters = [],
+      implementation = scalarFunctionRegistry()->get('current_date')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::dateAdd(datepart: Expression[1], date: Expression[1], amount: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'date_add',
+      parameters = [$datepart, $date, $amount],
+      implementation = scalarFunctionRegistry()->get('date_add')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::dateSub(datepart: Expression[1], date: Expression[1], amount: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'date_sub',
+      parameters = [$datepart, $date, $amount],
+      implementation = scalarFunctionRegistry()->get('date_sub')->toOne()
    );
 }

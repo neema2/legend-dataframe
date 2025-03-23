@@ -215,3 +215,321 @@ function <<test.Test>> meta::pure::dsl::tests::testDatabaseSpecificFunctions(): 
    
    true;
 }
+
+function <<test.Test>> meta::pure::dsl::tests::testConditionalFunctions(): Boolean[1]
+{
+   // Create a DataFrame with conditional functions
+   let df = select([
+      coalesce(col('value'), literal(0))->as('coalesced_value'),
+      nullif(col('value'), literal(0))->as('nullif_value'),
+      greatest(col('value1'), col('value2'), col('value3'))->as('greatest_value'),
+      least(col('value1'), col('value2'), col('value3'))->as('least_value')
+   ])
+   ->from(table('data'));
+   
+   // Test SQL generation across all supported databases
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
+   let redshiftSQL = $df->generateRedshiftSQL();
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL contains expected syntax
+   assertEquals(true, $snowflakeSQL->contains('COALESCE(value, 0) AS coalesced_value'));
+   assertEquals(true, $snowflakeSQL->contains('NULLIF(value, 0) AS nullif_value'));
+   assertEquals(true, $snowflakeSQL->contains('GREATEST(value1, value2, value3) AS greatest_value'));
+   assertEquals(true, $snowflakeSQL->contains('LEAST(value1, value2, value3) AS least_value'));
+   
+   assertEquals(true, $duckdbSQL->contains('COALESCE(value, 0) AS coalesced_value'));
+   assertEquals(true, $duckdbSQL->contains('NULLIF(value, 0) AS nullif_value'));
+   assertEquals(true, $duckdbSQL->contains('GREATEST(value1, value2, value3) AS greatest_value'));
+   assertEquals(true, $duckdbSQL->contains('LEAST(value1, value2, value3) AS least_value'));
+   
+   assertEquals(true, $bigquerySQL->contains('COALESCE(value, 0) AS coalesced_value'));
+   assertEquals(true, $bigquerySQL->contains('NULLIF(value, 0) AS nullif_value'));
+   assertEquals(true, $bigquerySQL->contains('GREATEST(value1, value2, value3) AS greatest_value'));
+   assertEquals(true, $bigquerySQL->contains('LEAST(value1, value2, value3) AS least_value'));
+   
+   assertEquals(true, $databricksSQL->contains('COALESCE(value, 0) AS coalesced_value'));
+   assertEquals(true, $databricksSQL->contains('NULLIF(value, 0) AS nullif_value'));
+   assertEquals(true, $databricksSQL->contains('GREATEST(value1, value2, value3) AS greatest_value'));
+   assertEquals(true, $databricksSQL->contains('LEAST(value1, value2, value3) AS least_value'));
+   
+   assertEquals(true, $redshiftSQL->contains('COALESCE(value, 0) AS coalesced_value'));
+   assertEquals(true, $redshiftSQL->contains('NULLIF(value, 0) AS nullif_value'));
+   assertEquals(true, $redshiftSQL->contains('GREATEST(value1, value2, value3) AS greatest_value'));
+   assertEquals(true, $redshiftSQL->contains('LEAST(value1, value2, value3) AS least_value'));
+   
+   assertEquals(true, $postgresSQL->contains('COALESCE(value, 0) AS coalesced_value'));
+   assertEquals(true, $postgresSQL->contains('NULLIF(value, 0) AS nullif_value'));
+   assertEquals(true, $postgresSQL->contains('GREATEST(value1, value2, value3) AS greatest_value'));
+   assertEquals(true, $postgresSQL->contains('LEAST(value1, value2, value3) AS least_value'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testConversionFunctions(): Boolean[1]
+{
+   // Create a DataFrame with conversion functions
+   let df = select([
+      cast(col('value'), literal('INTEGER'))->as('int_value'),
+      toNumber(col('string_value'))->as('numeric_value'),
+      toDate(col('date_string'), literal('YYYY-MM-DD'))->as('date_value'),
+      toTimestamp(col('timestamp_string'), literal('YYYY-MM-DD HH24:MI:SS'))->as('timestamp_value')
+   ])
+   ->from(table('data'));
+   
+   // Test SQL generation across all supported databases
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
+   let redshiftSQL = $df->generateRedshiftSQL();
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL contains expected syntax
+   assertEquals(true, $snowflakeSQL->contains('CAST(value AS INTEGER) AS int_value'));
+   assertEquals(true, $snowflakeSQL->contains('TO_NUMBER(string_value) AS numeric_value'));
+   assertEquals(true, $snowflakeSQL->contains('TO_DATE(date_string, \'YYYY-MM-DD\') AS date_value'));
+   assertEquals(true, $snowflakeSQL->contains('TO_TIMESTAMP(timestamp_string, \'YYYY-MM-DD HH24:MI:SS\') AS timestamp_value'));
+   
+   assertEquals(true, $duckdbSQL->contains('CAST(value AS INTEGER) AS int_value'));
+   assertEquals(true, $duckdbSQL->contains('CAST(string_value AS DOUBLE) AS numeric_value'));
+   assertEquals(true, $duckdbSQL->contains('TO_DATE(date_string, \'YYYY-MM-DD\') AS date_value'));
+   assertEquals(true, $duckdbSQL->contains('TO_TIMESTAMP(timestamp_string, \'YYYY-MM-DD HH24:MI:SS\') AS timestamp_value'));
+   
+   assertEquals(true, $bigquerySQL->contains('CAST(value AS INTEGER) AS int_value'));
+   assertEquals(true, $bigquerySQL->contains('CAST(string_value AS NUMERIC) AS numeric_value'));
+   assertEquals(true, $bigquerySQL->contains('PARSE_DATE(\'YYYY-MM-DD\', date_string) AS date_value'));
+   assertEquals(true, $bigquerySQL->contains('PARSE_TIMESTAMP(\'YYYY-MM-DD HH24:MI:SS\', timestamp_string) AS timestamp_value'));
+   
+   assertEquals(true, $databricksSQL->contains('CAST(value AS INTEGER) AS int_value'));
+   assertEquals(true, $databricksSQL->contains('CAST(string_value AS DECIMAL(38, 10)) AS numeric_value'));
+   assertEquals(true, $databricksSQL->contains('TO_DATE(date_string, \'YYYY-MM-DD\') AS date_value'));
+   assertEquals(true, $databricksSQL->contains('TO_TIMESTAMP(timestamp_string, \'YYYY-MM-DD HH24:MI:SS\') AS timestamp_value'));
+   
+   assertEquals(true, $redshiftSQL->contains('CAST(value AS INTEGER) AS int_value'));
+   assertEquals(true, $redshiftSQL->contains('TO_NUMBER(string_value) AS numeric_value'));
+   assertEquals(true, $redshiftSQL->contains('TO_DATE(date_string, \'YYYY-MM-DD\') AS date_value'));
+   assertEquals(true, $redshiftSQL->contains('TO_TIMESTAMP(timestamp_string, \'YYYY-MM-DD HH24:MI:SS\') AS timestamp_value'));
+   
+   assertEquals(true, $postgresSQL->contains('CAST(value AS INTEGER) AS int_value'));
+   assertEquals(true, $postgresSQL->contains('TO_NUMBER(string_value) AS numeric_value'));
+   assertEquals(true, $postgresSQL->contains('TO_DATE(date_string, \'YYYY-MM-DD\') AS date_value'));
+   assertEquals(true, $postgresSQL->contains('TO_TIMESTAMP(timestamp_string, \'YYYY-MM-DD HH24:MI:SS\') AS timestamp_value'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testNewMathFunctions(): Boolean[1]
+{
+   // Create a DataFrame with new math functions
+   let df = select([
+      round(col('value'), literal(2))->as('rounded_value'),
+      ceiling(col('value'))->as('ceiling_value'),
+      floor(col('value'))->as('floor_value'),
+      log(col('value'))->as('log_value'),
+      ln(col('value'))->as('ln_value'),
+      mod(col('value'), literal(5))->as('mod_value')
+   ])
+   ->from(table('data'));
+   
+   // Test SQL generation across all supported databases
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
+   let redshiftSQL = $df->generateRedshiftSQL();
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL contains expected syntax
+   assertEquals(true, $snowflakeSQL->contains('ROUND(value, 2) AS rounded_value'));
+   assertEquals(true, $snowflakeSQL->contains('CEILING(value) AS ceiling_value'));
+   assertEquals(true, $snowflakeSQL->contains('FLOOR(value) AS floor_value'));
+   assertEquals(true, $snowflakeSQL->contains('LOG(value) AS log_value'));
+   assertEquals(true, $snowflakeSQL->contains('LN(value) AS ln_value'));
+   assertEquals(true, $snowflakeSQL->contains('MOD(value, 5) AS mod_value'));
+   
+   assertEquals(true, $duckdbSQL->contains('ROUND(value, 2) AS rounded_value'));
+   assertEquals(true, $duckdbSQL->contains('CEILING(value) AS ceiling_value'));
+   assertEquals(true, $duckdbSQL->contains('FLOOR(value) AS floor_value'));
+   assertEquals(true, $duckdbSQL->contains('LOG10(value) AS log_value'));
+   assertEquals(true, $duckdbSQL->contains('LN(value) AS ln_value'));
+   assertEquals(true, $duckdbSQL->contains('MOD(value, 5) AS mod_value'));
+   
+   assertEquals(true, $bigquerySQL->contains('ROUND(value, 2) AS rounded_value'));
+   assertEquals(true, $bigquerySQL->contains('CEIL(value) AS ceiling_value'));
+   assertEquals(true, $bigquerySQL->contains('FLOOR(value) AS floor_value'));
+   assertEquals(true, $bigquerySQL->contains('LOG10(value) AS log_value'));
+   assertEquals(true, $bigquerySQL->contains('LN(value) AS ln_value'));
+   assertEquals(true, $bigquerySQL->contains('MOD(value, 5) AS mod_value'));
+   
+   assertEquals(true, $databricksSQL->contains('ROUND(value, 2) AS rounded_value'));
+   assertEquals(true, $databricksSQL->contains('CEILING(value) AS ceiling_value'));
+   assertEquals(true, $databricksSQL->contains('FLOOR(value) AS floor_value'));
+   assertEquals(true, $databricksSQL->contains('LOG10(value) AS log_value'));
+   assertEquals(true, $databricksSQL->contains('LN(value) AS ln_value'));
+   assertEquals(true, $databricksSQL->contains('MOD(value, 5) AS mod_value'));
+   
+   assertEquals(true, $redshiftSQL->contains('ROUND(value, 2) AS rounded_value'));
+   assertEquals(true, $redshiftSQL->contains('CEILING(value) AS ceiling_value'));
+   assertEquals(true, $redshiftSQL->contains('FLOOR(value) AS floor_value'));
+   assertEquals(true, $redshiftSQL->contains('LOG10(value) AS log_value'));
+   assertEquals(true, $redshiftSQL->contains('LN(value) AS ln_value'));
+   assertEquals(true, $redshiftSQL->contains('MOD(value, 5) AS mod_value'));
+   
+   assertEquals(true, $postgresSQL->contains('ROUND(value, 2) AS rounded_value'));
+   assertEquals(true, $postgresSQL->contains('CEILING(value) AS ceiling_value'));
+   assertEquals(true, $postgresSQL->contains('FLOOR(value) AS floor_value'));
+   assertEquals(true, $postgresSQL->contains('LOG10(value) AS log_value'));
+   assertEquals(true, $postgresSQL->contains('LN(value) AS ln_value'));
+   assertEquals(true, $postgresSQL->contains('MOD(value, 5) AS mod_value'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testNewDateFunctions(): Boolean[1]
+{
+   // Create a DataFrame with new date functions
+   let df = select([
+      currentDate()->as('today'),
+      dateAdd(literal('day'), col('date_value'), literal(7))->as('date_plus_7_days'),
+      dateSub(literal('month'), col('date_value'), literal(1))->as('date_minus_1_month')
+   ])
+   ->from(table('data'));
+   
+   // Test SQL generation across all supported databases
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
+   let redshiftSQL = $df->generateRedshiftSQL();
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL contains expected syntax
+   assertEquals(true, $snowflakeSQL->contains('CURRENT_DATE() AS today'));
+   assertEquals(true, $snowflakeSQL->contains('DATEADD(\'day\', 7, date_value) AS date_plus_7_days'));
+   assertEquals(true, $snowflakeSQL->contains('DATEADD(\'month\', -1, date_value) AS date_minus_1_month'));
+   
+   assertEquals(true, $duckdbSQL->contains('CURRENT_DATE() AS today'));
+   assertEquals(true, $duckdbSQL->contains('DATEADD(\'day\', 7, date_value) AS date_plus_7_days'));
+   assertEquals(true, $duckdbSQL->contains('DATEADD(\'month\', -1, date_value) AS date_minus_1_month'));
+   
+   assertEquals(true, $bigquerySQL->contains('CURRENT_DATE() AS today'));
+   assertEquals(true, $bigquerySQL->contains('DATE_ADD(\'day\', date_value, 7) AS date_plus_7_days'));
+   assertEquals(true, $bigquerySQL->contains('DATE_SUB(\'month\', date_value, 1) AS date_minus_1_month'));
+   
+   assertEquals(true, $databricksSQL->contains('CURRENT_DATE() AS today'));
+   assertEquals(true, $databricksSQL->contains('DATE_ADD(\'day\', date_value, 7) AS date_plus_7_days'));
+   assertEquals(true, $databricksSQL->contains('DATE_SUB(\'month\', date_value, 1) AS date_minus_1_month'));
+   
+   assertEquals(true, $redshiftSQL->contains('CURRENT_DATE() AS today'));
+   assertEquals(true, $redshiftSQL->contains('DATEADD(\'day\', 7, date_value) AS date_plus_7_days'));
+   assertEquals(true, $redshiftSQL->contains('DATEADD(\'month\', -1, date_value) AS date_minus_1_month'));
+   
+   assertEquals(true, $postgresSQL->contains('CURRENT_DATE() AS today'));
+   assertEquals(true, $postgresSQL->contains('(date_value + CAST(7 day AS INTERVAL)) AS date_plus_7_days'));
+   assertEquals(true, $postgresSQL->contains('(date_value - CAST(1 month AS INTERVAL)) AS date_minus_1_month'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testNewStringFunctions(): Boolean[1]
+{
+   // Create a DataFrame with new string functions
+   let df = select([
+      left(col('name'), literal(3))->as('name_left_3'),
+      right(col('name'), literal(3))->as('name_right_3'),
+      split(col('full_name'), literal(' '))->as('name_parts'),
+      regexpExtract(col('text'), literal('\\d+'))->as('extracted_numbers')
+   ])
+   ->from(table('users'));
+   
+   // Test SQL generation across all supported databases
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
+   let redshiftSQL = $df->generateRedshiftSQL();
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL contains expected syntax
+   assertEquals(true, $snowflakeSQL->contains('LEFT(name, 3) AS name_left_3'));
+   assertEquals(true, $snowflakeSQL->contains('RIGHT(name, 3) AS name_right_3'));
+   assertEquals(true, $snowflakeSQL->contains('SPLIT(full_name, \' \') AS name_parts'));
+   assertEquals(true, $snowflakeSQL->contains('REGEXP_SUBSTR(text, \'\\d+\', 1, 1) AS extracted_numbers'));
+   
+   assertEquals(true, $duckdbSQL->contains('LEFT(name, 3) AS name_left_3'));
+   assertEquals(true, $duckdbSQL->contains('RIGHT(name, 3) AS name_right_3'));
+   assertEquals(true, $duckdbSQL->contains('STRING_SPLIT(full_name, \' \') AS name_parts'));
+   assertEquals(true, $duckdbSQL->contains('REGEXP_EXTRACT(text, \'\\d+\') AS extracted_numbers'));
+   
+   assertEquals(true, $bigquerySQL->contains('LEFT(name, 3) AS name_left_3'));
+   assertEquals(true, $bigquerySQL->contains('RIGHT(name, 3) AS name_right_3'));
+   assertEquals(true, $bigquerySQL->contains('SPLIT(full_name, \' \') AS name_parts'));
+   assertEquals(true, $bigquerySQL->contains('REGEXP_EXTRACT(text, \'\\d+\') AS extracted_numbers'));
+   
+   assertEquals(true, $databricksSQL->contains('LEFT(name, 3) AS name_left_3'));
+   assertEquals(true, $databricksSQL->contains('RIGHT(name, 3) AS name_right_3'));
+   assertEquals(true, $databricksSQL->contains('SPLIT(full_name, \' \') AS name_parts'));
+   assertEquals(true, $databricksSQL->contains('REGEXP_EXTRACT(text, \'\\d+\') AS extracted_numbers'));
+   
+   assertEquals(true, $redshiftSQL->contains('LEFT(name, 3) AS name_left_3'));
+   assertEquals(true, $redshiftSQL->contains('RIGHT(name, 3) AS name_right_3'));
+   assertEquals(true, $redshiftSQL->contains('SPLIT_PART(full_name, \' \', 1) AS name_parts'));
+   assertEquals(true, $redshiftSQL->contains('REGEXP_SUBSTR(text, \'\\d+\', 1, 1) AS extracted_numbers'));
+   
+   assertEquals(true, $postgresSQL->contains('LEFT(name, 3) AS name_left_3'));
+   assertEquals(true, $postgresSQL->contains('RIGHT(name, 3) AS name_right_3'));
+   assertEquals(true, $postgresSQL->contains('STRING_TO_ARRAY(full_name, \' \') AS name_parts'));
+   assertEquals(true, $postgresSQL->contains('REGEXP_MATCHES(text, \'\\d+\')[1] AS extracted_numbers'));
+   
+   true;
+}
+
+function <<test.Test>> meta::pure::dsl::tests::testNestedNewFunctions(): Boolean[1]
+{
+   // Create a DataFrame with nested new functions
+   let df = select([
+      ceiling(round(col('value'), literal(2)))->as('ceiling_of_rounded'),
+      coalesce(nullif(col('value'), literal(0)), literal(1))->as('safe_value'),
+      left(upper(col('name')), literal(3))->as('upper_left_3')
+   ])
+   ->from(table('data'));
+   
+   // Test SQL generation across all supported databases
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   let duckdbSQL = $df->generateDuckDBSQL();
+   let bigquerySQL = $df->generateBigQuerySQL();
+   let databricksSQL = $df->generateDatabricksSQL();
+   let redshiftSQL = $df->generateRedshiftSQL();
+   let postgresSQL = $df->generatePostgresSQL();
+   
+   // Verify SQL contains expected nested function syntax
+   assertEquals(true, $snowflakeSQL->contains('CEILING(ROUND(value, 2)) AS ceiling_of_rounded'));
+   assertEquals(true, $snowflakeSQL->contains('COALESCE(NULLIF(value, 0), 1) AS safe_value'));
+   assertEquals(true, $snowflakeSQL->contains('LEFT(UPPER(name), 3) AS upper_left_3'));
+   
+   assertEquals(true, $duckdbSQL->contains('CEILING(ROUND(value, 2)) AS ceiling_of_rounded'));
+   assertEquals(true, $duckdbSQL->contains('COALESCE(NULLIF(value, 0), 1) AS safe_value'));
+   assertEquals(true, $duckdbSQL->contains('LEFT(UPPER(name), 3) AS upper_left_3'));
+   
+   assertEquals(true, $bigquerySQL->contains('CEIL(ROUND(value, 2)) AS ceiling_of_rounded'));
+   assertEquals(true, $bigquerySQL->contains('COALESCE(NULLIF(value, 0), 1) AS safe_value'));
+   assertEquals(true, $bigquerySQL->contains('LEFT(UPPER(name), 3) AS upper_left_3'));
+   
+   assertEquals(true, $databricksSQL->contains('CEILING(ROUND(value, 2)) AS ceiling_of_rounded'));
+   assertEquals(true, $databricksSQL->contains('COALESCE(NULLIF(value, 0), 1) AS safe_value'));
+   assertEquals(true, $databricksSQL->contains('LEFT(UPPER(name), 3) AS upper_left_3'));
+   
+   assertEquals(true, $redshiftSQL->contains('CEILING(ROUND(value, 2)) AS ceiling_of_rounded'));
+   assertEquals(true, $redshiftSQL->contains('COALESCE(NULLIF(value, 0), 1) AS safe_value'));
+   assertEquals(true, $redshiftSQL->contains('LEFT(UPPER(name), 3) AS upper_left_3'));
+   
+   assertEquals(true, $postgresSQL->contains('CEILING(ROUND(value, 2)) AS ceiling_of_rounded'));
+   assertEquals(true, $postgresSQL->contains('COALESCE(NULLIF(value, 0), 1) AS safe_value'));
+   assertEquals(true, $postgresSQL->contains('LEFT(UPPER(name), 3) AS upper_left_3'));
+   
+   true;
+}

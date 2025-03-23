@@ -1,0 +1,82 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::column::*;
+
+/**
+ * Convenience functions for creating aggregations with explicit types
+ */
+
+// Create an array of aggregation specifications
+function meta::pure::dsl::dataframe::aggs<K, V, R>(specs: AggColSpec<K, V, R>[*]): AggColSpecArray<K, V, R>[1]
+{
+   ^AggColSpecArray<K, V, R>(specs = $specs);
+}
+
+// Count aggregation
+function meta::pure::dsl::dataframe::count<T, R>(keyFunc: Function<{T[1]->R[0..1]}>[1], name: String[1]): AggColSpec<{T[1]->R[0..1]}, {R[*]->Integer[1]}, Integer>[1]
+{
+   ^AggColSpec<{T[1]->R[0..1]}, {R[*]->Integer[1]}, Integer>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = {values | $values->size()},
+      aggregationType = AggregationType.COUNT
+   );
+}
+
+// Sum aggregation
+function meta::pure::dsl::dataframe::sum<T, R>(keyFunc: Function<{T[1]->Number[0..1]}>[1], name: String[1]): AggColSpec<{T[1]->Number[0..1]}, {Number[*]->Number[1]}, Number>[1]
+{
+   ^AggColSpec<{T[1]->Number[0..1]}, {Number[*]->Number[1]}, Number>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = {values | $values->sum()},
+      aggregationType = AggregationType.SUM
+   );
+}
+
+// Average aggregation
+function meta::pure::dsl::dataframe::avg<T, R>(keyFunc: Function<{T[1]->Number[0..1]}>[1], name: String[1]): AggColSpec<{T[1]->Number[0..1]}, {Number[*]->Number[1]}, Number>[1]
+{
+   ^AggColSpec<{T[1]->Number[0..1]}, {Number[*]->Number[1]}, Number>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = {values | $values->average()},
+      aggregationType = AggregationType.AVG
+   );
+}
+
+// Min aggregation
+function meta::pure::dsl::dataframe::min<T, R, C>(keyFunc: Function<{T[1]->C[0..1]}>[1], name: String[1]): AggColSpec<{T[1]->C[0..1]}, {C[*]->C[1]}, C>[1]
+{
+   ^AggColSpec<{T[1]->C[0..1]}, {C[*]->C[1]}, C>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = {values | $values->min()},
+      aggregationType = AggregationType.MIN
+   );
+}
+
+// Max aggregation
+function meta::pure::dsl::dataframe::max<T, R, C>(keyFunc: Function<{T[1]->C[0..1]}>[1], name: String[1]): AggColSpec<{T[1]->C[0..1]}, {C[*]->C[1]}, C>[1]
+{
+   ^AggColSpec<{T[1]->C[0..1]}, {C[*]->C[1]}, C>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = {values | $values->max()},
+      aggregationType = AggregationType.MAX
+   );
+}

@@ -1,0 +1,140 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+
+/**
+ * Functions for translating Pure lambda expressions to SQL.
+ * This framework powers both filter conditions and groupBy expressions.
+ */
+
+// Main function to translate a Pure lambda to SQL expression
+function meta::pure::dsl::dataframe::translateLambdaToSQL(
+   lambda: Function<Any>[1], 
+   db: Database[1], 
+   exprGenerator: Function<{Expression[1]->String[1]}>[1],
+   context: Map<String, Any>[0..1]
+): String[1]
+{
+   // Get the AST of the lambda function
+   let ast = $lambda->evaluateAndDeactivate();
+   
+   // Analyze the AST and generate SQL
+   $ast->match([
+      // Simple equality comparison
+      e: FunctionExpression[1] | 
+         if($e.functionName == 'equal',
+            let left = $e.parametersValues->at(0)->translateNodeToSQL($db, $exprGenerator, $context);
+            let right = $e.parametersValues->at(1)->translateNodeToSQL($db, $exprGenerator, $context);
+            $left + ' = ' + $right,
+         // Greater than comparison
+         if($e.functionName == 'greaterThan',
+            let left = $e.parametersValues->at(0)->translateNodeToSQL($db, $exprGenerator, $context);
+            let right = $e.parametersValues->at(1)->translateNodeToSQL($db, $exprGenerator, $context);
+            $left + ' > ' + $right,
+         // Less than comparison
+         if($e.functionName == 'lessThan',
+            let left = $e.parametersValues->at(0)->translateNodeToSQL($db, $exprGenerator, $context);
+            let right = $e.parametersValues->at(1)->translateNodeToSQL($db, $exprGenerator, $context);
+            $left + ' < ' + $right,
+         // AND operator
+         if($e.functionName == 'and',
+            let left = $e.parametersValues->at(0)->translateNodeToSQL($db, $exprGenerator, $context);
+            let right = $e.parametersValues->at(1)->translateNodeToSQL($db, $exprGenerator, $context);
+            '(' + $left + ' AND ' + $right + ')',
+         // OR operator
+         if($e.functionName == 'or',
+            let left = $e.parametersValues->at(0)->translateNodeToSQL($db, $exprGenerator, $context);
+            let right = $e.parametersValues->at(1)->translateNodeToSQL($db, $exprGenerator, $context);
+            '(' + $left + ' OR ' + $right + ')',
+         // NOT operator
+         if($e.functionName == 'not',
+            let expr = $e.parametersValues->at(0)->translateNodeToSQL($db, $exprGenerator, $context);
+            'NOT (' + $expr + ')',
+         // Function call (e.g., abs, cos, etc.)
+         let params = $e.parametersValues->map(p | $p->translateNodeToSQL($db, $exprGenerator, $context));
+         $e.functionName + '(' + $params->joinStrings(', ') + ')'
+         ))))))),
+         
+      // Property access (e.g., $x.amount)
+      p: PropertyExpression[1] |
+         let source = $p.parametersValues->at(0);
+         if($source->instanceOf(VariableExpression) && $context->isNotEmpty() && $context->toOne()->containsKey('tableAlias'),
+            $context->toOne()->get('tableAlias')->toOne() + '.' + $p.property.name,
+            $p.property.name),
+            
+      // Variable reference (e.g., $x)
+      v: VariableExpression[1] |
+         if($context->isNotEmpty() && $context->toOne()->containsKey('tableAlias'),
+            $context->toOne()->get('tableAlias')->toOne(),
+            $v.name),
+            
+      // Literal values
+      l: LiteralExpression[1] |
+         meta::pure::dsl::dataframe::generateLiteralSQL($l.value, $db),
+         
+      // Default case for unsupported expressions
+      n: ValueSpecification[1] |
+         fail('Unsupported expression type: ' + $n->type()->fullName());
+         'ERROR'
+   ]);
+}
+
+// Helper function to translate AST nodes to SQL
+function <<access.private>> meta::pure::dsl::dataframe::translateNodeToSQL(
+   node: ValueSpecification[1], 
+   db: Database[1], 
+   exprGenerator: Function<{Expression[1]->String[1]}>[1],
+   context: Map<String, Any>[0..1]
+): String[1]
+{
+   $node->match([
+      l: LiteralExpression[1] | 
+         meta::pure::dsl::dataframe::generateLiteralSQL($l.value, $db),
+         
+      v: VariableExpression[1] | 
+         if($context->isNotEmpty() && $context->toOne()->containsKey('tableAlias'),
+            $context->toOne()->get('tableAlias')->toOne(),
+            $v.name),
+            
+      p: PropertyExpression[1] | 
+         let source = $p.parametersValues->at(0);
+         if($source->instanceOf(VariableExpression) && $context->isNotEmpty() && $context->toOne()->containsKey('tableAlias'),
+            $context->toOne()->get('tableAlias')->toOne() + '.' + $p.property.name,
+            $p.property.name),
+            
+      f: FunctionExpression[1] | 
+         meta::pure::dsl::dataframe::translateLambdaToSQL($f->cast(@Function<Any>), $db, $exprGenerator, $context),
+         
+      e: ValueSpecification[1] | 
+         fail('Unsupported node type: ' + $e->type()->fullName());
+         'ERROR'
+   ]);
+}
+
+// Generate SQL for literal values based on database dialect
+function meta::pure::dsl::dataframe::generateLiteralSQL(value: Any[1], db: Database[1]): String[1]
+{
+   $value->match([
+      s: String[1] | '\'' + $s->replace('\'', '\'\'') + '\'',
+      i: Integer[1] | $i->toString(),
+      f: Float[1] | $f->toString(),
+      b: Boolean[1] | if($b, 'TRUE', 'FALSE'),
+      d: Date[1] | 'DATE \'' + $d->toString() + '\'',
+      t: DateTime[1] | 'TIMESTAMP \'' + $t->toString() + '\'',
+      n: Nil[1] | 'NULL',
+      a: Any[1] | $a->toString()
+   ]);
+}

@@ -92,7 +92,9 @@ function <<access.private>> meta::pure::dsl::duckdb::generateGroupByClause(df: D
 {
    if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
       '', 
-      '\nGROUP BY ' + $df.groupBy.columns->map(c | $c->generateDuckDBExpression())->joinStrings(', '))
+      '\nGROUP BY ' + if($df.groupBy->instanceOf(LambdaGroupByClause),
+                         meta::pure::dsl::dataframe::generateLambdaGroupBySQL($df.groupBy->cast(@LambdaGroupByClause).lambda, Database.DUCKDB, {e | generateDuckDBExpression($e)}, $df.groupBy->cast(@LambdaGroupByClause).tableAlias),
+                         $df.groupBy.columns->map(c | $c->generateDuckDBExpression())->joinStrings(', ')))
 }
 
 // Generate the HAVING clause

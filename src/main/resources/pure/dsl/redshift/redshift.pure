@@ -106,9 +106,11 @@ function <<access.private>> meta::pure::dsl::redshift::generateWhereClause(df: D
 // Generate the GROUP BY clause
 function <<access.private>> meta::pure::dsl::redshift::generateGroupByClause(df: DataFrame[1]): String[1]
 {
-   if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
+   if($df.groupBy->isEmpty() || ($df.groupBy->instanceOf(GroupByClause) && $df.groupBy.columns->isEmpty()), 
       '', 
-      '\nGROUP BY ' + $df.groupBy.columns->map(c | $c->generateRedshiftExpression())->joinStrings(', '))
+      '\nGROUP BY ' + if($df.groupBy->instanceOf(LambdaGroupByClause),
+                         meta::pure::dsl::dataframe::generateLambdaGroupBySQL($df.groupBy->cast(@LambdaGroupByClause).lambda, Database.REDSHIFT, {e | generateRedshiftExpression($e)}, $df.groupBy->cast(@LambdaGroupByClause).tableAlias),
+                         $df.groupBy.columns->map(c | $c->generateRedshiftExpression())->joinStrings(', ')))
 }
 
 // Generate the HAVING clause

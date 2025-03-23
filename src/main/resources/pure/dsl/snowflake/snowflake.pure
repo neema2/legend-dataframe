@@ -103,7 +103,9 @@ function <<access.private>> meta::pure::dsl::snowflake::generateGroupByClause(df
 {
    if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
       '', 
-      '\nGROUP BY ' + $df.groupBy.columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', '))
+      '\nGROUP BY ' + if($df.groupBy->instanceOf(LambdaGroupByClause),
+                         meta::pure::dsl::dataframe::generateLambdaGroupBySQL($df.groupBy->cast(@LambdaGroupByClause).lambda, Database.SNOWFLAKE, {e | generateSnowflakeExpression($e)}, $df.groupBy->cast(@LambdaGroupByClause).tableAlias),
+                         $df.groupBy.columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', ')))
 }
 
 // Generate the HAVING clause

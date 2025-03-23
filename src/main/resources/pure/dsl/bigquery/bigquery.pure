@@ -121,19 +121,22 @@ function <<access.private>> meta::pure::dsl::bigquery::generateWhereClause(df: D
 // Generate the GROUP BY clause
 function <<access.private>> meta::pure::dsl::bigquery::generateGroupByClause(df: DataFrame[1]): String[1]
 {
-   if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
+   if($df.groupBy->isEmpty() || ($df.groupBy->instanceOf(GroupByClause) && $df.groupBy.columns->isEmpty()), 
       '', 
       '\nGROUP BY ' + 
-      if($df.groupBy.type == GroupByType.STANDARD,
-         $df.groupBy.columns->map(c | $c->generateBigQueryExpression())->joinStrings(', '),
-         if($df.groupBy.type == GroupByType.CUBE,
-            'CUBE(' + $df.groupBy.columns->map(c | $c->generateBigQueryExpression())->joinStrings(', ') + ')',
-            if($df.groupBy.type == GroupByType.ROLLUP,
-               'ROLLUP(' + $df.groupBy.columns->map(c | $c->generateBigQueryExpression())->joinStrings(', ') + ')',
-               // GROUPING SETS
-               'GROUPING SETS(' + $df.groupBy.groupingSets->map(gs | 
-                  '(' + $gs->map(c | $c->generateBigQueryExpression())->joinStrings(', ') + ')'
-               )->joinStrings(', ') + ')'
+      if($df.groupBy->instanceOf(LambdaGroupByClause),
+         meta::pure::dsl::dataframe::generateLambdaGroupBySQL($df.groupBy->cast(@LambdaGroupByClause).lambda, Database.BIGQUERY, {e | generateBigQueryExpression($e)}, $df.groupBy->cast(@LambdaGroupByClause).tableAlias),
+         if($df.groupBy.type == GroupByType.STANDARD,
+            $df.groupBy.columns->map(c | $c->generateBigQueryExpression())->joinStrings(', '),
+            if($df.groupBy.type == GroupByType.CUBE,
+               'CUBE(' + $df.groupBy.columns->map(c | $c->generateBigQueryExpression())->joinStrings(', ') + ')',
+               if($df.groupBy.type == GroupByType.ROLLUP,
+                  'ROLLUP(' + $df.groupBy.columns->map(c | $c->generateBigQueryExpression())->joinStrings(', ') + ')',
+                  // GROUPING SETS
+                  'GROUPING SETS(' + $df.groupBy.groupingSets->map(gs | 
+                     '(' + $gs->map(c | $c->generateBigQueryExpression())->joinStrings(', ') + ')'
+                  )->joinStrings(', ') + ')'
+               )
             )
          )
       )

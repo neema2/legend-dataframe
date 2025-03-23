@@ -443,11 +443,18 @@ function meta::pure::dsl::dataframe::where(df: DataFrame[1], condition: FilterCo
    filter($df, {x | $condition})
 }
 
-// Type-safe groupBy functions
+// Type-safe groupBy functions with lambda support
 function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
 {
    // Create column references from ColSpecArray
    let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+   
+   // Get table alias for context
+   let tableAlias = $df.source->map(s | $s->match([
+      t: TableReference[1] | $t.alias,
+      j: JoinOperation[1] | $j.left->cast(@TableReference).alias,
+      s: DataSource[1] | []
+   ]))->first();
    
    ^$df(groupBy = ^GroupByClause(columns = $colRefs));
 }
@@ -457,7 +464,30 @@ function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], col: ColSpe
    // Create column reference
    let colRef = ^ColumnReference(columnName = $col.name);
    
+   // Get table alias for context
+   let tableAlias = $df.source->map(s | $s->match([
+      t: TableReference[1] | $t.alias,
+      j: JoinOperation[1] | $j.left->cast(@TableReference).alias,
+      s: DataSource[1] | []
+   ]))->first();
+   
    ^$df(groupBy = ^GroupByClause(columns = [$colRef]));
+}
+
+// Type-safe groupBy function with lambda expression
+function meta::pure::dsl::dataframe::groupBy<T>(df: DataFrame[1], lambda: Function<{T[1]->Any[*]}>[1]): DataFrame[1]
+{
+   // Get table alias for context
+   let tableAlias = $df.source->map(s | $s->match([
+      t: TableReference[1] | $t.alias,
+      j: JoinOperation[1] | $j.left->cast(@TableReference).alias,
+      s: DataSource[1] | []
+   ]))->first();
+   
+   ^$df(groupBy = ^LambdaGroupByClause(
+      lambda = $lambda->cast(@Function<Any>),
+      tableAlias = $tableAlias
+   ));
 }
 
 // Type-safe groupBy function with table schema validation
@@ -469,6 +499,13 @@ function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], tableSchema
       {
          // Create column references from ColSpecArray
          let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+         
+         // Get table alias for context
+         let tableAlias = $df.source->map(s | $s->match([
+            t: TableReference[1] | $t.alias,
+            j: JoinOperation[1] | $j.left->cast(@TableReference).alias,
+            s: DataSource[1] | []
+         ]))->first();
          
          ^$df(groupBy = ^GroupByClause(columns = $colRefs));
       },

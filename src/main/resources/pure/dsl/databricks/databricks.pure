@@ -85,19 +85,22 @@ function <<access.private>> meta::pure::dsl::databricks::generateWhereClause(df:
 // Generate the GROUP BY clause
 function <<access.private>> meta::pure::dsl::databricks::generateGroupByClause(df: DataFrame[1]): String[1]
 {
-   if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
+   if($df.groupBy->isEmpty() || ($df.groupBy->instanceOf(GroupByClause) && $df.groupBy.columns->isEmpty()), 
       '', 
       '\nGROUP BY ' + 
-      if($df.groupBy.type == GroupByType.STANDARD,
-         $df.groupBy.columns->map(c | $c->generateDatabricksExpression())->joinStrings(', '),
-         if($df.groupBy.type == GroupByType.CUBE,
-            'CUBE(' + $df.groupBy.columns->map(c | $c->generateDatabricksExpression())->joinStrings(', ') + ')',
-            if($df.groupBy.type == GroupByType.ROLLUP,
-               'ROLLUP(' + $df.groupBy.columns->map(c | $c->generateDatabricksExpression())->joinStrings(', ') + ')',
-               // GROUPING SETS
-               'GROUPING SETS(' + $df.groupBy.groupingSets->map(gs | 
-                  '(' + $gs->map(c | $c->generateDatabricksExpression())->joinStrings(', ') + ')'
-               )->joinStrings(', ') + ')'
+      if($df.groupBy->instanceOf(LambdaGroupByClause),
+         meta::pure::dsl::dataframe::generateLambdaGroupBySQL($df.groupBy->cast(@LambdaGroupByClause).lambda, Database.DATABRICKS, {e | generateDatabricksExpression($e)}, $df.groupBy->cast(@LambdaGroupByClause).tableAlias),
+         if($df.groupBy.type == GroupByType.STANDARD,
+            $df.groupBy.columns->map(c | $c->generateDatabricksExpression())->joinStrings(', '),
+            if($df.groupBy.type == GroupByType.CUBE,
+               'CUBE(' + $df.groupBy.columns->map(c | $c->generateDatabricksExpression())->joinStrings(', ') + ')',
+               if($df.groupBy.type == GroupByType.ROLLUP,
+                  'ROLLUP(' + $df.groupBy.columns->map(c | $c->generateDatabricksExpression())->joinStrings(', ') + ')',
+                  // GROUPING SETS
+                  'GROUPING SETS(' + $df.groupBy.groupingSets->map(gs | 
+                     '(' + $gs->map(c | $c->generateDatabricksExpression())->joinStrings(', ') + ')'
+                  )->joinStrings(', ') + ')'
+               )
             )
          )
       )

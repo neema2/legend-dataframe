@@ -96,7 +96,22 @@ function <<access.private>> meta::pure::dsl::bigquery::generateSelectClause(df: 
    
    'SELECT ' + if($df.distinct == true, 'DISTINCT ', '') + $prefix + 
    if($df.columns->isEmpty(), 
-      '*' + $exceptClause + $replaceClause, 
+      if($df.groupBy->isNotEmpty() && $df.groupBy->toOne().aggregations->isNotEmpty(),
+         // If we have aggregations but no explicit columns, generate columns from group by and aggregations
+         $df.groupBy->toOne().columns->map(c | $c->generateBigQueryExpression())->joinStrings(', ') + 
+         if($df.groupBy->toOne().columns->isNotEmpty() && $df.groupBy->toOne().aggregations->isNotEmpty(), ', ', '') +
+         $df.groupBy->toOne().aggregations->map(agg | 
+            let keyExpr = $agg.keyFunction->eval(^ColumnReference(columnName = 'x'))->generateBigQueryExpression();
+            let aggFunc = if($agg.valueFunction->eval(['test'])->instanceOf(Integer), 'COUNT',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 6, 'SUM',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 2, 'AVG',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 1, 'MIN',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 3, 'MAX',
+                           'STRING_AGG')))));
+            $aggFunc + '(' + $keyExpr + ')' + ' AS ' + $agg.name
+         )->joinStrings(', '),
+         '*' + $exceptClause + $replaceClause
+      ),
       $df.columns->map(c | $c.expression->generateBigQueryExpression() + if($c.alias->isNotEmpty(), ' AS ' + $c.alias->toOne(), ''))->joinStrings(', '));
 }
 

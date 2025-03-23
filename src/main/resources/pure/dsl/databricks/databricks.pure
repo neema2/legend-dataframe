@@ -60,7 +60,22 @@ function <<access.private>> meta::pure::dsl::databricks::generateSelectClause(df
    'SELECT ' + 
    if($df.distinct, 'DISTINCT ', '') + 
    if($df.columns->isEmpty(), 
-      '*', 
+      if($df.groupBy->isNotEmpty() && $df.groupBy->toOne().aggregations->isNotEmpty(),
+         // If we have aggregations but no explicit columns, generate columns from group by and aggregations
+         $df.groupBy->toOne().columns->map(c | $c->generateDatabricksExpression())->joinStrings(', ') + 
+         if($df.groupBy->toOne().columns->isNotEmpty() && $df.groupBy->toOne().aggregations->isNotEmpty(), ', ', '') +
+         $df.groupBy->toOne().aggregations->map(agg | 
+            let keyExpr = $agg.keyFunction->eval(^ColumnReference(columnName = 'x'))->generateDatabricksExpression();
+            let aggFunc = if($agg.valueFunction->eval(['test'])->instanceOf(Integer), 'COUNT',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 6, 'SUM',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 2, 'AVG',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 1, 'MIN',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 3, 'MAX',
+                           'ARRAY_AGG')))));
+            $aggFunc + '(' + $keyExpr + ')' + ' AS ' + $agg.name
+         )->joinStrings(', '),
+         '*'
+      ),
       $df.columns->map(c | $c->generateDatabricksExpression() + if($c.alias->isEmpty(), '', ' AS ' + $c.alias->toOne()))->joinStrings(', '));
 }
 

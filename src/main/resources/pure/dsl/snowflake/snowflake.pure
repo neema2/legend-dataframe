@@ -75,7 +75,22 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSelectClause(df:
 {
    'SELECT ' + if($df.distinct == true, 'DISTINCT ', '') + 
    if($df.columns->isEmpty(), 
-      '*', 
+      if($df.groupBy->isNotEmpty() && $df.groupBy->toOne().aggregations->isNotEmpty(),
+         // If we have aggregations but no explicit columns, generate columns from group by and aggregations
+         $df.groupBy->toOne().columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', ') + 
+         if($df.groupBy->toOne().columns->isNotEmpty() && $df.groupBy->toOne().aggregations->isNotEmpty(), ', ', '') +
+         $df.groupBy->toOne().aggregations->map(agg | 
+            let keyExpr = $agg.keyFunction->eval(^ColumnReference(columnName = 'x'))->generateSnowflakeExpression();
+            let aggFunc = if($agg.valueFunction->eval(['test'])->instanceOf(Integer), 'COUNT',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 6, 'SUM',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 2, 'AVG',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 1, 'MIN',
+                           if($agg.valueFunction->eval([1,2,3])->instanceOf(Number) && $agg.valueFunction->eval([1,2,3]) == 3, 'MAX',
+                           'UNKNOWN')))));
+            $aggFunc + '(' + $keyExpr + ') AS ' + $agg.name
+         )->joinStrings(', '),
+         '*'
+      ),
       $df.columns->map(c | $c.expression->generateSnowflakeExpression() + if($c.alias->isNotEmpty(), ' AS ' + $c.alias->toOne(), ''))->joinStrings(', '))
 }
 
@@ -103,7 +118,24 @@ function <<access.private>> meta::pure::dsl::snowflake::generateGroupByClause(df
 {
    if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
       '', 
-      '\nGROUP BY ' + $df.groupBy.columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', '))
+      let groupByClause = '\nGROUP BY ' + 
+         if($df.groupBy.type == GroupByType.STANDARD || $df.groupBy.type->isEmpty(),
+            $df.groupBy.columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', '),
+            if($df.groupBy.type == GroupByType.CUBE,
+               'CUBE(' + $df.groupBy.columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', ') + ')',
+               if($df.groupBy.type == GroupByType.ROLLUP,
+                  'ROLLUP(' + $df.groupBy.columns->map(c | $c->generateSnowflakeExpression())->joinStrings(', ') + ')',
+                  // GROUPING SETS
+                  'GROUPING SETS(' + $df.groupBy.groupingSets->map(gs | 
+                     '(' + $gs->map(c | $c->generateSnowflakeExpression())->joinStrings(', ') + ')'
+                  )->joinStrings(', ') + ')'
+               )
+            )
+         );
+      
+      // Add aggregations to SELECT clause if needed
+      $groupByClause
+   )
 }
 
 // Generate the HAVING clause

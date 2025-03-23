@@ -1,0 +1,297 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::snowflake::*;
+import meta::pure::dsl::duckdb::*;
+import meta::pure::dsl::bigquery::*;
+import meta::pure::dsl::databricks::*;
+import meta::pure::dsl::redshift::*;
+import meta::pure::dsl::postgres::*;
+
+/**
+ * Example queries using the legend-dataframe DSL
+ */
+
+// Basic table selection
+function meta::pure::dsl::examples::basicSelect(): String[1]
+{
+   let df = table('employees');
+   $df->generateSnowflakeSQL();
+}
+
+// Select specific columns
+function meta::pure::dsl::examples::selectColumns(): String[1]
+{
+   let df = table('employees')->select([col('employee_id'), col('first_name'), col('last_name')]);
+   $df->generateSnowflakeSQL();
+}
+
+// Simple filter condition
+function meta::pure::dsl::examples::simpleFilter(): String[1]
+{
+   let df = table('employees')->filter({e | $e.salary > 50000});
+   $df->generateSnowflakeSQL();
+}
+
+// Complex filter with AND, OR, NOT
+function meta::pure::dsl::examples::complexFilter(): String[1]
+{
+   let df = table('employees')->filter({e | 
+      ($e.salary > 50000 && $e.department == 'Engineering') || 
+      ($e.salary > 100000 && $e.department == 'Sales') ||
+      ($e.title == 'Manager' && !($e.location == 'Remote'))
+   });
+   $df->generateSnowflakeSQL();
+}
+
+// Filter with table alias
+function meta::pure::dsl::examples::filterWithAlias(): String[1]
+{
+   let df = ^TableReference(tableName = 'employees', alias = 'e')->asDataFrame()
+      ->filter({e | $e.salary > 50000 && $e.department == 'Engineering'});
+   $df->generateSnowflakeSQL();
+}
+
+// Simple groupBy
+function meta::pure::dsl::examples::simpleGroupBy(): String[1]
+{
+   let df = table('employees')->groupBy({e | $e.department});
+   $df->generateSnowflakeSQL();
+}
+
+// GroupBy with multiple columns
+function meta::pure::dsl::examples::multiColumnGroupBy(): String[1]
+{
+   let df = table('employees')->groupBy({e | [$e.department, $e.location]});
+   $df->generateSnowflakeSQL();
+}
+
+// GroupBy with aggregations
+function meta::pure::dsl::examples::groupByWithAggregations(): String[1]
+{
+   let df = table('employees')
+      ->groupBy({e | $e.department})
+      ->select([
+         col('department'),
+         ^Column(
+            name = 'avg_salary',
+            expression = ^AggregateFunction(
+               functionName = 'AVG',
+               parameters = [^ColumnReference(columnName = 'salary')]
+            )
+         ),
+         ^Column(
+            name = 'total_employees',
+            expression = ^CountFunction(
+               functionName = 'COUNT',
+               parameters = [^LiteralExpression(value = '*')]
+            )
+         )
+      ]);
+   $df->generateSnowflakeSQL();
+}
+
+// Using explicit aggregation functions
+function meta::pure::dsl::examples::explicitAggregations(): String[1]
+{
+   let df = table('employees')
+      ->groupBy({e | $e.department})
+      ->select([
+         col('department'),
+         count({e | $e}, 'employee_count'),
+         avg({e | $e.salary}, 'average_salary'),
+         sum({e | $e.bonus}, 'total_bonus'),
+         min({e | $e.hire_date}, 'earliest_hire'),
+         max({e | $e.salary}, 'highest_salary')
+      ]);
+   $df->generateSnowflakeSQL();
+}
+
+// Join example
+function meta::pure::dsl::examples::joinExample(): String[1]
+{
+   let employees = ^TableReference(tableName = 'employees', alias = 'e');
+   let departments = ^TableReference(tableName = 'departments', alias = 'd');
+   
+   let joinCondition = ^BinaryOperation(
+      left = ^ColumnReference(columnName = 'department_id', tableAlias = 'e'),
+      operator = BinaryOperator.EQUALS,
+      right = ^ColumnReference(columnName = 'id', tableAlias = 'd')
+   );
+   
+   let join = ^JoinOperation(
+      left = $employees,
+      right = $departments,
+      joinType = JoinType.INNER,
+      condition = $joinCondition
+   );
+   
+   let df = ^DataFrame(source = $join)
+      ->select([
+         ^Column(name = 'e.employee_id', expression = ^ColumnReference(columnName = 'employee_id', tableAlias = 'e')),
+         ^Column(name = 'e.name', expression = ^ColumnReference(columnName = 'name', tableAlias = 'e')),
+         ^Column(name = 'd.department_name', expression = ^ColumnReference(columnName = 'department_name', tableAlias = 'd'))
+      ])
+      ->filter({row | $row.d.budget > 1000000});
+   
+   $df->generateSnowflakeSQL();
+}
+
+// Complex query with multiple features
+function meta::pure::dsl::examples::complexQuery(): String[1]
+{
+   let df = table('sales')
+      ->filter({s | $s.transaction_date >= '2023-01-01' && $s.transaction_date < '2024-01-01'})
+      ->groupBy({s | [$s.product_category, $s.region]})
+      ->select([
+         col('product_category'),
+         col('region'),
+         ^Column(
+            name = 'total_sales',
+            expression = ^AggregateFunction(
+               functionName = 'SUM',
+               parameters = [^ColumnReference(columnName = 'amount')]
+            )
+         ),
+         ^Column(
+            name = 'transaction_count',
+            expression = ^CountFunction(
+               functionName = 'COUNT',
+               parameters = [^LiteralExpression(value = '*')]
+            )
+         ),
+         ^Column(
+            name = 'avg_transaction',
+            expression = ^AggregateFunction(
+               functionName = 'AVG',
+               parameters = [^ColumnReference(columnName = 'amount')]
+            )
+         )
+      ])
+      ->having(^BinaryOperation(
+         left = ^ColumnReference(columnName = 'total_sales'),
+         operator = BinaryOperator.GREATER_THAN,
+         right = ^LiteralExpression(value = 10000)
+      ))
+      ->orderBy(^OrderByClause(
+         expression = ^ColumnReference(columnName = 'total_sales'),
+         direction = SortDirection.DESC
+      ));
+   
+   $df->generateSnowflakeSQL();
+}
+
+// Using scalar functions
+function meta::pure::dsl::examples::scalarFunctions(): String[1]
+{
+   let df = table('customers')
+      ->select([
+         col('customer_id'),
+         col('first_name'),
+         col('last_name'),
+         ^Column(
+            name = 'full_name',
+            expression = ^ScalarFunction(
+               functionName = 'CONCAT',
+               parameters = [
+                  ^ColumnReference(columnName = 'first_name'),
+                  ^LiteralExpression(value = ' '),
+                  ^ColumnReference(columnName = 'last_name')
+               ]
+            )
+         ),
+         ^Column(
+            name = 'signup_year',
+            expression = ^ScalarFunction(
+               functionName = 'EXTRACT',
+               parameters = [
+                  ^LiteralExpression(value = 'YEAR'),
+                  ^ColumnReference(columnName = 'signup_date')
+               ]
+            )
+         ),
+         ^Column(
+            name = 'days_since_signup',
+            expression = ^ScalarFunction(
+               functionName = 'DATEDIFF',
+               parameters = [
+                  ^LiteralExpression(value = 'DAY'),
+                  ^ColumnReference(columnName = 'signup_date'),
+                  ^ScalarFunction(
+                     functionName = 'CURRENT_DATE',
+                     parameters = []
+                  )
+               ]
+            )
+         )
+      ])
+      ->filter({c | $c.signup_year > 2020});
+   
+   $df->generateSnowflakeSQL();
+}
+
+// Cross-database compatibility example
+function meta::pure::dsl::examples::crossDatabaseExample(): String[*]
+{
+   let df = table('orders')
+      ->filter({o | $o.order_date >= '2023-01-01' && $o.status == 'Completed'})
+      ->groupBy({o | [$o.customer_id, $o.product_id]})
+      ->select([
+         col('customer_id'),
+         col('product_id'),
+         ^Column(
+            name = 'total_quantity',
+            expression = ^AggregateFunction(
+               functionName = 'SUM',
+               parameters = [^ColumnReference(columnName = 'quantity')]
+            )
+         ),
+         ^Column(
+            name = 'total_amount',
+            expression = ^AggregateFunction(
+               functionName = 'SUM',
+               parameters = [^ColumnReference(columnName = 'amount')]
+            )
+         ),
+         ^Column(
+            name = 'avg_order_value',
+            expression = ^AggregateFunction(
+               functionName = 'AVG',
+               parameters = [^ColumnReference(columnName = 'amount')]
+            )
+         )
+      ])
+      ->having(^BinaryOperation(
+         left = ^ColumnReference(columnName = 'total_quantity'),
+         operator = BinaryOperator.GREATER_THAN,
+         right = ^LiteralExpression(value = 10)
+      ))
+      ->orderBy(^OrderByClause(
+         expression = ^ColumnReference(columnName = 'total_amount'),
+         direction = SortDirection.DESC
+      ))
+      ->limit(100);
+   
+   // Generate SQL for all supported databases
+   [
+      'Snowflake: ' + $df->generateSnowflakeSQL(),
+      'DuckDB: ' + $df->generateDuckDBSQL(),
+      'BigQuery: ' + $df->generateBigQuerySQL(),
+      'Databricks: ' + $df->generateDatabricksSQL(),
+      'Redshift: ' + $df->generateRedshiftSQL(),
+      'Postgres: ' + $df->generatePostgresSQL()
+   ];
+}

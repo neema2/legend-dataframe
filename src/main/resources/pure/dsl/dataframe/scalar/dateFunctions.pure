@@ -112,7 +112,7 @@ function meta::pure::dsl::dataframe::scalar::initializeDateFunctions(registry: M
 }
 
 // Factory functions for creating date scalar functions
-function meta::pure::dsl::dataframe::date_part(part: Expression[1], date: Expression[1]): ScalarFunction[1]
+function meta::pure::dsl::dataframe::datePart(part: Expression[1], date: Expression[1]): ScalarFunction[1]
 {
    ^CommonScalarFunction(
       functionName = 'date_part',
@@ -121,7 +121,7 @@ function meta::pure::dsl::dataframe::date_part(part: Expression[1], date: Expres
    );
 }
 
-function meta::pure::dsl::dataframe::datediff(datepart: Expression[1], startdate: Expression[1], enddate: Expression[1]): ScalarFunction[1]
+function meta::pure::dsl::dataframe::dateDiff(datepart: Expression[1], startdate: Expression[1], enddate: Expression[1]): ScalarFunction[1]
 {
    ^CommonScalarFunction(
       functionName = 'datediff',
@@ -130,7 +130,7 @@ function meta::pure::dsl::dataframe::datediff(datepart: Expression[1], startdate
    );
 }
 
-function meta::pure::dsl::dataframe::date_trunc(part: Expression[1], date: Expression[1]): ScalarFunction[1]
+function meta::pure::dsl::dataframe::dateTrunc(part: Expression[1], date: Expression[1]): ScalarFunction[1]
 {
    ^CommonScalarFunction(
       functionName = 'date_trunc',
@@ -139,7 +139,7 @@ function meta::pure::dsl::dataframe::date_trunc(part: Expression[1], date: Expre
    );
 }
 
-function meta::pure::dsl::dataframe::time_bucket(interval: Expression[1], timestamp: Expression[1]): ScalarFunction[1]
+function meta::pure::dsl::dataframe::timeBucket(interval: Expression[1], timestamp: Expression[1]): ScalarFunction[1]
 {
    ^CommonScalarFunction(
       functionName = 'time_bucket',

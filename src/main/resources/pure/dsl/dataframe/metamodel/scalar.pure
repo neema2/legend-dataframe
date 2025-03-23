@@ -1,0 +1,61 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::scalar::*;
+
+/**
+ * Metamodel for SQL scalar functions in DataFrame DSL
+ */
+
+// Base class for scalar functions
+Class meta::pure::dsl::dataframe::metamodel::scalar::ScalarFunction extends FunctionExpression
+{
+}
+
+// Base class for math functions
+Class meta::pure::dsl::dataframe::metamodel::scalar::MathFunction extends ScalarFunction
+{
+}
+
+// Base class for date functions
+Class meta::pure::dsl::dataframe::metamodel::scalar::DateFunction extends ScalarFunction
+{
+}
+
+// Base class for string functions
+Class meta::pure::dsl::dataframe::metamodel::scalar::StringFunction extends ScalarFunction
+{
+}
+
+// Registry for scalar function implementations by database
+Class meta::pure::dsl::dataframe::metamodel::scalar::ScalarFunctionImplementation
+{
+   standardName: String[1];
+   databases: Map<Database, String>[1];
+   parameterTransformations: Map<Database, Function<{Expression[*]->Expression[*]}>>[0..1];
+}
+
+// Common functions have the same name across all databases
+Class meta::pure::dsl::dataframe::metamodel::scalar::CommonScalarFunction extends ScalarFunction
+{
+   implementation: ScalarFunctionImplementation[1];
+}
+
+// Database-specific functions require specialized implementations
+Class meta::pure::dsl::dataframe::metamodel::scalar::DatabaseSpecificFunction extends ScalarFunction
+{
+   implementations: Map<Database, String>[1];
+}

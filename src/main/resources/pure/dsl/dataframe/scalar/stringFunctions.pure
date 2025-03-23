@@ -1,0 +1,214 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::scalar::*;
+import meta::pure::dsl::dataframe::scalar::*;
+
+/**
+ * Implementation of string scalar functions for DataFrame DSL
+ */
+
+// Initialize string functions in the scalar function registry
+function meta::pure::dsl::dataframe::scalar::initializeStringFunctions(registry: Map<String, ScalarFunctionImplementation>[1]): Map<String, ScalarFunctionImplementation>[1]
+{
+   // String length function
+   $registry->put('length', ^ScalarFunctionImplementation(
+      standardName = 'LENGTH',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'LENGTH'),
+         pair(Database.DUCKDB, 'LENGTH'),
+         pair(Database.BIGQUERY, 'LENGTH'),
+         pair(Database.DATABRICKS, 'LENGTH'),
+         pair(Database.REDSHIFT, 'LENGTH'),
+         pair(Database.POSTGRES, 'LENGTH')
+      ])
+   ));
+   
+   // String concatenation function
+   $registry->put('concat', ^ScalarFunctionImplementation(
+      standardName = 'CONCAT',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'CONCAT'),
+         pair(Database.DUCKDB, 'CONCAT'),
+         pair(Database.BIGQUERY, 'CONCAT'),
+         pair(Database.DATABRICKS, 'CONCAT'),
+         pair(Database.REDSHIFT, 'CONCAT'),
+         pair(Database.POSTGRES, 'CONCAT')
+      ])
+   ));
+   
+   // Substring function
+   $registry->put('substring', ^ScalarFunctionImplementation(
+      standardName = 'SUBSTRING',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'SUBSTRING'),
+         pair(Database.DUCKDB, 'SUBSTRING'),
+         pair(Database.BIGQUERY, 'SUBSTR'),
+         pair(Database.DATABRICKS, 'SUBSTRING'),
+         pair(Database.REDSHIFT, 'SUBSTRING'),
+         pair(Database.POSTGRES, 'SUBSTRING')
+      ])
+   ));
+   
+   // Upper case function
+   $registry->put('upper', ^ScalarFunctionImplementation(
+      standardName = 'UPPER',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'UPPER'),
+         pair(Database.DUCKDB, 'UPPER'),
+         pair(Database.BIGQUERY, 'UPPER'),
+         pair(Database.DATABRICKS, 'UPPER'),
+         pair(Database.REDSHIFT, 'UPPER'),
+         pair(Database.POSTGRES, 'UPPER')
+      ])
+   ));
+   
+   // Lower case function
+   $registry->put('lower', ^ScalarFunctionImplementation(
+      standardName = 'LOWER',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'LOWER'),
+         pair(Database.DUCKDB, 'LOWER'),
+         pair(Database.BIGQUERY, 'LOWER'),
+         pair(Database.DATABRICKS, 'LOWER'),
+         pair(Database.REDSHIFT, 'LOWER'),
+         pair(Database.POSTGRES, 'LOWER')
+      ])
+   ));
+   
+   // Trim function
+   $registry->put('trim', ^ScalarFunctionImplementation(
+      standardName = 'TRIM',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'TRIM'),
+         pair(Database.DUCKDB, 'TRIM'),
+         pair(Database.BIGQUERY, 'TRIM'),
+         pair(Database.DATABRICKS, 'TRIM'),
+         pair(Database.REDSHIFT, 'TRIM'),
+         pair(Database.POSTGRES, 'TRIM')
+      ])
+   ));
+   
+   // Replace function
+   $registry->put('replace', ^ScalarFunctionImplementation(
+      standardName = 'REPLACE',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'REPLACE'),
+         pair(Database.DUCKDB, 'REPLACE'),
+         pair(Database.BIGQUERY, 'REPLACE'),
+         pair(Database.DATABRICKS, 'REPLACE'),
+         pair(Database.REDSHIFT, 'REPLACE'),
+         pair(Database.POSTGRES, 'REPLACE')
+      ])
+   ));
+   
+   // Regular expression match function with database-specific implementations
+   $registry->put('regexp_match', ^ScalarFunctionImplementation(
+      standardName = 'REGEXP_MATCH',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'REGEXP_LIKE'),
+         pair(Database.DUCKDB, 'REGEXP_MATCHES'),
+         pair(Database.BIGQUERY, 'REGEXP_CONTAINS'),
+         pair(Database.DATABRICKS, 'REGEXP_LIKE'),
+         pair(Database.REDSHIFT, 'REGEXP_INSTR'),
+         pair(Database.POSTGRES, 'REGEXP_MATCH')
+      ]),
+      parameterTransformations = newMap([
+         // For Redshift, transform parameters for REGEXP_INSTR
+         pair(Database.REDSHIFT, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [$params->at(0), $params->at(1), ^LiteralExpression(value = '1')],
+               $params
+            )
+         })
+      ])
+   ));
+   
+   $registry;
+}
+
+// Factory functions for creating string scalar functions
+function meta::pure::dsl::dataframe::length(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'length',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('length')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::concat(expr1: Expression[1], expr2: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'concat',
+      parameters = [$expr1, $expr2],
+      implementation = scalarFunctionRegistry()->get('concat')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::substring(str: Expression[1], start: Expression[1], length: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'substring',
+      parameters = [$str, $start, $length],
+      implementation = scalarFunctionRegistry()->get('substring')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::upper(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'upper',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('upper')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::lower(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'lower',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('lower')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::trim(expr: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'trim',
+      parameters = [$expr],
+      implementation = scalarFunctionRegistry()->get('trim')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::replace(str: Expression[1], search: Expression[1], replacement: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'replace',
+      parameters = [$str, $search, $replacement],
+      implementation = scalarFunctionRegistry()->get('replace')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::regexp_match(str: Expression[1], pattern: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'regexp_match',
+      parameters = [$str, $pattern],
+      implementation = scalarFunctionRegistry()->get('regexp_match')->toOne()
+   );
+}

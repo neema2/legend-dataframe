@@ -211,7 +211,8 @@ function <<access.private>> meta::pure::dsl::bigquery::generateBigQueryExpressio
       c: WindowFunction[1] | generateBigQueryWindowFunction($c),
       c: SubqueryColumn[1] | '(' + meta::pure::dsl::bigquery::generateBigQuerySQL($c.query) + ')',
       c: PivotColumn[1] | generateBigQueryPivot($c),
-      c: UnpivotColumn[1] | generateBigQueryUnpivot($c)
+      c: UnpivotColumn[1] | generateBigQueryUnpivot($c),
+      c: ScalarFunction[1] | meta::pure::dsl::dataframe::generateScalarFunctionSQL($c, Database.BIGQUERY, {e | generateBigQueryExpression($e)})
    ]);
 }
 

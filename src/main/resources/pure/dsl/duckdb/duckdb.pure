@@ -207,6 +207,7 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBFunction(func
       c: CountFunction[1] | 'COUNT(' + if($c.distinct == true, 'DISTINCT ', '') + $c.parameters->map(p | $p->generateDuckDBExpression())->joinStrings(', ') + ')',
       a: AggregateFunction[1] | $a.functionName->toUpperCase() + '(' + $a.parameters->map(p | $p->generateDuckDBExpression())->joinStrings(', ') + ')',
       w: WindowFunction[1] | $w->generateDuckDBWindowFunction(),
+      s: ScalarFunction[1] | meta::pure::dsl::dataframe::generateScalarFunctionSQL($s, Database.DUCKDB, {e | generateDuckDBExpression($e)}),
       f: FunctionExpression[1] | $f.functionName + '(' + $f.parameters->map(p | $p->generateDuckDBExpression())->joinStrings(', ') + ')'
    ])
 }

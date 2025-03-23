@@ -1,0 +1,149 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::dataframe::metamodel::scalar::*;
+import meta::pure::dsl::dataframe::scalar::*;
+
+/**
+ * Implementation of date scalar functions for DataFrame DSL
+ */
+
+// Initialize date functions in the scalar function registry
+function meta::pure::dsl::dataframe::scalar::initializeDateFunctions(registry: Map<String, ScalarFunctionImplementation>[1]): Map<String, ScalarFunctionImplementation>[1]
+{
+   // Date part extraction function
+   $registry->put('date_part', ^ScalarFunctionImplementation(
+      standardName = 'DATE_PART',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'DATE_PART'),
+         pair(Database.DUCKDB, 'DATE_PART'),
+         pair(Database.BIGQUERY, 'EXTRACT'),
+         pair(Database.DATABRICKS, 'DATE_PART'),
+         pair(Database.REDSHIFT, 'DATE_PART'),
+         pair(Database.POSTGRES, 'DATE_PART')
+      ])
+   ));
+   
+   // Date difference function with varying syntax
+   $registry->put('datediff', ^ScalarFunctionImplementation(
+      standardName = 'DATEDIFF',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'DATEDIFF'),
+         pair(Database.DUCKDB, 'DATEDIFF'),
+         pair(Database.BIGQUERY, 'DATE_DIFF'),
+         pair(Database.DATABRICKS, 'DATEDIFF'),
+         pair(Database.REDSHIFT, 'DATEDIFF'),
+         pair(Database.POSTGRES, 'DATE_PART')
+      ]),
+      parameterTransformations = newMap([
+         // For Postgres, transform parameters to use DATE_PART with subtraction
+         pair(Database.POSTGRES, {params: Expression[*] | 
+            if($params->size() >= 3,
+               [
+                  ^LiteralExpression(value = 'day'),
+                  ^BinaryOperation(
+                     left = $params->at(2), 
+                     operator = BinaryOperator.SUBTRACT, 
+                     right = $params->at(1)
+                  )
+               ],
+               $params
+            )
+         })
+      ])
+   ));
+   
+   // Date truncation function
+   $registry->put('date_trunc', ^ScalarFunctionImplementation(
+      standardName = 'DATE_TRUNC',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'DATE_TRUNC'),
+         pair(Database.DUCKDB, 'DATE_TRUNC'),
+         pair(Database.BIGQUERY, 'DATE_TRUNC'),
+         pair(Database.DATABRICKS, 'DATE_TRUNC'),
+         pair(Database.REDSHIFT, 'DATE_TRUNC'),
+         pair(Database.POSTGRES, 'DATE_TRUNC')
+      ])
+   ));
+   
+   // Time bucket/slice function with database-specific implementations
+   $registry->put('time_bucket', ^ScalarFunctionImplementation(
+      standardName = 'TIME_BUCKET',
+      databases = newMap([
+         pair(Database.SNOWFLAKE, 'TIME_SLICE'),
+         pair(Database.DUCKDB, 'TIME_BUCKET'),
+         pair(Database.BIGQUERY, 'TIMESTAMP_TRUNC'),
+         pair(Database.DATABRICKS, 'DATE_TRUNC'),
+         pair(Database.REDSHIFT, 'DATE_TRUNC'),
+         pair(Database.POSTGRES, 'DATE_BIN')
+      ]),
+      parameterTransformations = newMap([
+         // For BigQuery, transform parameters for TIMESTAMP_TRUNC
+         pair(Database.BIGQUERY, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [$params->at(1), $params->at(0)],
+               $params
+            )
+         }),
+         // For Postgres, transform parameters for DATE_BIN
+         pair(Database.POSTGRES, {params: Expression[*] | 
+            if($params->size() >= 2,
+               [$params->at(0), $params->at(1), ^LiteralExpression(value = '\'1970-01-01\'::timestamp')],
+               $params
+            )
+         })
+      ])
+   ));
+   
+   $registry;
+}
+
+// Factory functions for creating date scalar functions
+function meta::pure::dsl::dataframe::date_part(part: Expression[1], date: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'date_part',
+      parameters = [$part, $date],
+      implementation = scalarFunctionRegistry()->get('date_part')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::datediff(datepart: Expression[1], startdate: Expression[1], enddate: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'datediff',
+      parameters = [$datepart, $startdate, $enddate],
+      implementation = scalarFunctionRegistry()->get('datediff')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::date_trunc(part: Expression[1], date: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'date_trunc',
+      parameters = [$part, $date],
+      implementation = scalarFunctionRegistry()->get('date_trunc')->toOne()
+   );
+}
+
+function meta::pure::dsl::dataframe::time_bucket(interval: Expression[1], timestamp: Expression[1]): ScalarFunction[1]
+{
+   ^CommonScalarFunction(
+      functionName = 'time_bucket',
+      parameters = [$interval, $timestamp],
+      implementation = scalarFunctionRegistry()->get('time_bucket')->toOne()
+   );
+}

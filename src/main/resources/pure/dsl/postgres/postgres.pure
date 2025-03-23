@@ -189,6 +189,7 @@ function meta::pure::dsl::postgres::generatePostgresExpression(expr: Expression[
       l: LiteralExpression[1] | $l->generatePostgresLiteral(),
       c: ColumnReference[1] | $c->generatePostgresColumnRef(),
       f: FunctionExpression[1] | $f->generatePostgresFunction(),
+      s: ScalarFunction[1] | meta::pure::dsl::dataframe::generateScalarFunctionSQL($s, Database.POSTGRES, {e | generatePostgresExpression($e)}),
       b: BinaryOperation[1] | $b->generatePostgresBinaryOp(),
       u: UnaryOperation[1] | $u->generatePostgresUnaryOp()
    ])

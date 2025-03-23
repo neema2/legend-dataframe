@@ -23,6 +23,7 @@ Enum meta::pure::dsl::dataframe::metamodel::Database
    SNOWFLAKE,
    DUCKDB,
    BIGQUERY,
+   DATABRICKS,
    POSTGRES,
    REDSHIFT
 }

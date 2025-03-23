@@ -77,7 +77,9 @@ function <<access.private>> meta::pure::dsl::databricks::generateWhereClause(df:
 {
    if($df.filter->isEmpty(), 
       '', 
-      '\nWHERE ' + $df.filter->toOne()->generateDatabricksExpression());
+      '\nWHERE ' + if($df.filter->toOne()->instanceOf(LambdaFilterCondition),
+                      meta::pure::dsl::dataframe::generateLambdaFilterSQL($df.filter->toOne()->cast(@LambdaFilterCondition).lambda, Database.DATABRICKS, {e | generateDatabricksExpression($e)}, $df.filter->toOne()->cast(@LambdaFilterCondition).tableAlias),
+                      $df.filter->toOne()->generateDatabricksExpression()));
 }
 
 // Generate the GROUP BY clause

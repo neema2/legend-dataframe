@@ -82,7 +82,9 @@ function <<access.private>> meta::pure::dsl::postgres::generateWhereClause(df: D
 {
    if($df.filter->isEmpty(), 
       '', 
-      '\nWHERE ' + $df.filter->toOne()->generatePostgresExpression())
+      '\nWHERE ' + if($df.filter->toOne()->instanceOf(LambdaFilterCondition),
+                      meta::pure::dsl::dataframe::generateLambdaFilterSQL($df.filter->toOne()->cast(@LambdaFilterCondition).lambda, Database.POSTGRES, {e | generatePostgresExpression($e)}, $df.filter->toOne()->cast(@LambdaFilterCondition).tableAlias),
+                      $df.filter->toOne()->generatePostgresExpression()))
 }
 
 // Generate the GROUP BY clause

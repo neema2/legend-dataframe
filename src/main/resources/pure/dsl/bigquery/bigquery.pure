@@ -113,7 +113,9 @@ function <<access.private>> meta::pure::dsl::bigquery::generateWhereClause(df: D
 {
    if($df.filter->isEmpty(), 
       '', 
-      '\nWHERE ' + $df.filter->toOne()->generateBigQueryExpression());
+      '\nWHERE ' + if($df.filter->toOne()->instanceOf(LambdaFilterCondition),
+                      meta::pure::dsl::dataframe::generateLambdaFilterSQL($df.filter->toOne()->cast(@LambdaFilterCondition).lambda, Database.BIGQUERY, {e | generateBigQueryExpression($e)}, $df.filter->toOne()->cast(@LambdaFilterCondition).tableAlias),
+                      $df.filter->toOne()->generateBigQueryExpression()));
 }
 
 // Generate the GROUP BY clause

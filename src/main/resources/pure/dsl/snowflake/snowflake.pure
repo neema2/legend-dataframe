@@ -267,6 +267,7 @@ function <<access.private>> meta::pure::dsl::snowflake::generateSnowflakeExpress
       l: LiteralExpression[1] | $l.value->generateSnowflakeLiteral(),
       c: ColumnReference[1] | if($c.tableAlias->isNotEmpty(), $c.tableAlias->toOne() + '.', '') + $c.columnName,
       f: FunctionExpression[1] | $f->generateSnowflakeFunction(),
+      lf: LambdaFilterCondition[1] | meta::pure::dsl::dataframe::generateLambdaFilterSQL($lf.lambda, Database.SNOWFLAKE, {e | generateSnowflakeExpression($e)}, $lf.tableAlias),
       b: BinaryOperation[1] | '(' + $b.left->generateSnowflakeExpression() + ' ' + $b.operator->generateSnowflakeBinaryOperator() + ' ' + $b.right->generateSnowflakeExpression() + ')',
       u: UnaryOperation[1] | $u.operator->generateSnowflakeUnaryOperator() + '(' + $u.expression->generateSnowflakeExpression() + ')',
       e: Expression[1] | 'UNKNOWN_EXPRESSION_TYPE'

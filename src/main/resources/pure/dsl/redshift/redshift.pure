@@ -184,6 +184,7 @@ function <<access.private>> meta::pure::dsl::redshift::generateRedshiftExpressio
       l: LiteralExpression[1] | $l.value->generateRedshiftLiteral(),
       c: ColumnReference[1] | if($c.tableAlias->isNotEmpty(), $c.tableAlias->toOne() + '.', '') + $c.columnName,
       f: FunctionExpression[1] | $f->generateRedshiftFunction(),
+      lf: LambdaFilterCondition[1] | meta::pure::dsl::dataframe::generateLambdaFilterSQL($lf.lambda, Database.REDSHIFT, {e | generateRedshiftExpression($e)}, $lf.tableAlias),
       b: BinaryOperation[1] | '(' + $b.left->generateRedshiftExpression() + ' ' + $b.operator->generateRedshiftBinaryOperator() + ' ' + $b.right->generateRedshiftExpression() + ')',
       u: UnaryOperation[1] | $u.operator->generateRedshiftUnaryOperator() + '(' + $u.expression->generateRedshiftExpression() + ')',
       e: Expression[1] | 'UNKNOWN_EXPRESSION_TYPE'

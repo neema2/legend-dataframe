@@ -407,14 +407,34 @@ function meta::pure::dsl::dataframe::from(df: DataFrame[1], source: DataSource[1
 // Type-safe filter function
 function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], condition: Function<{T[1]->Boolean[1]}>[1]): DataFrame[1]
 {
-   ^$df(filter = $condition)
+   // Create a LambdaFilterCondition with the lambda function
+   let filterCondition = ^LambdaFilterCondition(
+      lambda = $condition->cast(@Function<Any>),
+      tableAlias = $df.source->map(s | $s->match([
+         t: TableReference[1] | $t.alias,
+         j: JoinOperation[1] | $j.left->cast(@TableReference).alias,
+         s: DataSource[1] | []
+      ]))->first()
+   );
+   
+   ^$df(filter = $filterCondition);
 }
 
 // Type-safe filter function with table schema validation
 function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], tableSchema: TableSchema<T>[1], condition: Function<{T[1]->Boolean[1]}>[1]): DataFrame[1]
 {
+   // Create a LambdaFilterCondition with the lambda function
+   let filterCondition = ^LambdaFilterCondition(
+      lambda = $condition->cast(@Function<Any>),
+      tableAlias = $df.source->map(s | $s->match([
+         t: TableReference[1] | $t.alias,
+         j: JoinOperation[1] | $j.left->cast(@TableReference).alias,
+         s: DataSource[1] | []
+      ]))->first()
+   );
+   
    // Validate condition against table schema
-   ^$df(filter = $condition)
+   ^$df(filter = $filterCondition);
 }
 
 // For backward compatibility (deprecated)

@@ -365,7 +365,7 @@ function meta::pure::dsl::dataframe::newDataFrame(): DataFrame[1]
 function meta::pure::dsl::dataframe::select<T>(cols: ColSpecArray<T>[1]): DataFrame[1]
 {
    // Create columns from ColSpecArray
-   let columns = $cols.names->map(n | ^Column(name = $n, expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $n)), alias = $n));
+   let columns = $cols.names->map(n | ^Column(name = $n, expression = ^ColumnReference(colSpec = ^ColSpec<T>(name = $n, tableSchema = $cols.tableSchema)), alias = $n));
    
    ^DataFrame(columns = $columns, distinct = false);
 }
@@ -373,7 +373,7 @@ function meta::pure::dsl::dataframe::select<T>(cols: ColSpecArray<T>[1]): DataFr
 function meta::pure::dsl::dataframe::select<T>(col: ColSpec<T>[1]): DataFrame[1]
 {
    // Create column from ColSpec
-   let column = ^Column(name = $col.name, expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $col.name)), alias = $col.name);
+   let column = ^Column(name = $col.name, expression = ^ColumnReference(colSpec = $col), alias = $col.name);
    
    ^DataFrame(columns = [$column], distinct = false);
 }
@@ -387,7 +387,7 @@ function meta::pure::dsl::dataframe::select(columns: Column[*]): DataFrame[1]
 function meta::pure::dsl::dataframe::selectDistinct<T>(cols: ColSpecArray<T>[1]): DataFrame[1]
 {
    // Create columns from ColSpecArray
-   let columns = $cols.names->map(n | ^Column(name = $n, expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $n)), alias = $n));
+   let columns = $cols.names->map(n | ^Column(name = $n, expression = ^ColumnReference(colSpec = ^ColSpec<T>(name = $n, tableSchema = $cols.tableSchema)), alias = $n));
    
    ^DataFrame(columns = $columns, distinct = true);
 }
@@ -395,7 +395,7 @@ function meta::pure::dsl::dataframe::selectDistinct<T>(cols: ColSpecArray<T>[1])
 function meta::pure::dsl::dataframe::selectDistinct<T>(col: ColSpec<T>[1]): DataFrame[1]
 {
    // Create column from ColSpec
-   let column = ^Column(name = $col.name, expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $col.name)), alias = $col.name);
+   let column = ^Column(name = $col.name, expression = ^ColumnReference(colSpec = $col), alias = $col.name);
    
    ^DataFrame(columns = [$column], distinct = true);
 }
@@ -438,7 +438,7 @@ function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], tableSchema: Ta
 function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
 {
    // Create column references from ColSpecArray
-   let colRefs = $cols.names->map(n | ^ColumnReference(colSpec = ^ColSpec<Any>(name = $n)));
+   let colRefs = $cols.names->map(n | ^ColumnReference(colSpec = ^ColSpec<Z>(name = $n, tableSchema = $cols.tableSchema)));
    
    ^$df(groupBy = ^GroupByClause(columns = $colRefs));
 }
@@ -446,7 +446,7 @@ function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], cols: ColSp
 function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
 {
    // Create column reference
-   let colRef = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $col.name));
+   let colRef = ^ColumnReference(colSpec = $col);
    
    ^$df(groupBy = ^GroupByClause(columns = [$colRef]));
 }
@@ -482,7 +482,7 @@ function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], cols: ColSp
 {
    let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
    let clauses = $cols.names->map(n | ^OrderByClause(
-      expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $n)),
+      expression = ^ColumnReference(colSpec = ^ColSpec<Z>(name = $n, tableSchema = $cols.tableSchema)),
       direction = $direction
    ));
    ^$df(orderBy = $clauses);
@@ -492,7 +492,7 @@ function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], col: ColSpe
 {
    let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
    let clause = ^OrderByClause(
-      expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $col.name)),
+      expression = ^ColumnReference(colSpec = $col),
       direction = $direction
    );
    ^$df(orderBy = [$clause]);
@@ -507,10 +507,10 @@ function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], tableSchema
       {
          let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
          let clauses = $cols.names->map(n | ^OrderByClause(
-            expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $n)),
+            expression = ^ColumnReference(colSpec = ^ColSpec<Z>(name = $n, tableSchema = $cols.tableSchema)),
             direction = $direction
-         ));
-         ^$df(orderBy = $clauses);
+          ));
+          ^$df(orderBy = $clauses);
       },
       error('Columns [' + $invalidColumns->joinStrings(', ') + '] not found in table schema "' + $tableSchema.name + '"')
    );

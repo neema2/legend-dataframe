@@ -27,7 +27,7 @@ import meta::pure::dsl::bigquery::*;
 function <<test.Test>> meta::pure::dsl::tests::testTypeSafeColSpec(): Boolean[1]
 {
    // Test ColSpec creation with tilde notation
-   let col = ~'column1';
+   let col = ~column1;
    assertEquals('column1', $col.name);
    
    // Test ColSpecArray creation with tilde notation
@@ -41,19 +41,19 @@ function <<test.Test>> meta::pure::dsl::tests::testTypeSafeColSpec(): Boolean[1]
 function <<test.Test>> meta::pure::dsl::tests::testTypeSafeAggregateFunctions(): Boolean[1]
 {
    // Test type-safe aggregate functions
-   let sumCol = sum(~'value');
+   let sumCol = sum(~value);
    assertEquals('sum_value', $sumCol.name);
    
-   let avgCol = avg(~'price');
+   let avgCol = avg(~price);
    assertEquals('avg_price', $avgCol.name);
    
-   let minCol = min(~'score');
+   let minCol = min(~score);
    assertEquals('min_score', $minCol.name);
    
-   let maxCol = max(~'rating');
+   let maxCol = max(~rating);
    assertEquals('max_rating', $maxCol.name);
    
-   let countCol = count(~'id');
+   let countCol = count(~id);
    assertEquals('count_id', $countCol.name);
    
    true;
@@ -63,7 +63,7 @@ function <<test.Test>> meta::pure::dsl::tests::testTypeSafeAggregateFunctions():
 function <<test.Test>> meta::pure::dsl::tests::testTypeSafeWindowSpec(): Boolean[1]
 {
    // Test window specification with tilde notation
-   let windowSpec1 = over(~'department');
+   let windowSpec1 = over(~department);
    assertEquals(['department'], $windowSpec1.partition);
    assertEquals([], $windowSpec1.sortInfo);
    
@@ -72,13 +72,13 @@ function <<test.Test>> meta::pure::dsl::tests::testTypeSafeWindowSpec(): Boolean
    assertEquals([], $windowSpec2.sortInfo);
    
    // Test with sort info
-   let windowSpec3 = over(~'department', [asc(~'salary')]);
+   let windowSpec3 = over(~department, [asc(~salary)]);
    assertEquals(['department'], $windowSpec3.partition);
    assertEquals('salary', $windowSpec3.sortInfo->at(0).column);
    assertEquals(meta::pure::dsl::dataframe::metamodel::window::SortDirection.ASC, $windowSpec3.sortInfo->at(0).direction);
    
    // Test with multiple sort columns
-   let windowSpec4 = over(~['region', 'department'], [asc(~'date'), desc(~'id')]);
+   let windowSpec4 = over(~['region', 'department'], [asc(~date), desc(~id)]);
    assertEquals(['region', 'department'], $windowSpec4.partition);
    assertEquals('date', $windowSpec4.sortInfo->at(0).column);
    assertEquals('id', $windowSpec4.sortInfo->at(1).column);

@@ -89,7 +89,7 @@ DataFrame supports window functions using the `over` function:
 // Basic window function with partition by
 let avgSalaryByDept = $df
    ->extend([
-      avg(col('salary'))->over(~department)->as('avg_salary')
+      avg(~salary)->over(~department)->as('avg_salary')
    ]);
 
 // Window function with ordering
@@ -101,7 +101,7 @@ let salaryRank = $df
 // Window function with frame
 let runningTotal = $df
    ->extend([
-      sum(col('amount'))->over([~department], [asc(~date)], rows(unbounded(), 0))->as('running_total')
+      sum(~amount)->over([~department], [asc(~date)], rows(unbounded(), 0))->as('running_total')
    ]);
 ```
 

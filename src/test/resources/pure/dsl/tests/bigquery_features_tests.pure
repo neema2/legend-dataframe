@@ -53,7 +53,7 @@ function <<test.Test>> meta::pure::dsl::tests::testBigQueryExceptReplace(): Bool
    // Test SELECT * REPLACE
    let replacements = newMap([
       pair('salary', literal(0)),
-      pair('age', ^FunctionExpression(functionName = 'CAST', parameters = [col('age'), literal('INT64')]))
+      pair('age', ^FunctionExpression(functionName = 'CAST', parameters = [~age, literal('INT64')]))
    ]);
    let dfReplace = table('employees')->replace($replacements);
    let sqlReplace = $dfReplace->generateBigQuerySQL();

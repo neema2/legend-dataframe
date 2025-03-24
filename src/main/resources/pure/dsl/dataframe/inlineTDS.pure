@@ -31,7 +31,7 @@ Class <<access.private>> meta::pure::dsl::dataframe::metamodel::TableReference
 // Function to create an inline TDS DataFrame
 function meta::pure::dsl::dataframe::inlineTDS(columns: String[*], rows: Any[*][*]): DataFrame[1]
 {
-   let columnDefs = $columns->map(c | ^Column(name = $c, expression = ^ColumnReference(columnName = $c)));
+   let columnDefs = $columns->map(c | ^Column(name = $c, expression = ^ColumnReference(colSpec = ^ColSpec<Any>(name = $c))));
    
    let source = ^TableReference(
       tableName = 'inline_tds',

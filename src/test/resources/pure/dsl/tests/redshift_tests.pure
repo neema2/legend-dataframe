@@ -22,8 +22,8 @@ function <<meta::pure::profiles::test.Test>> {meta.pure.profiles.test.AlloyOnly}
             ->filter({x | $x.salary > 50000})
             ->select({x | [~name, ~department, ~salary]})
             ->groupBy([~department])
-            ->having({x | sum(col('salary')) > 100000})
-            ->orderBy([desc(col('department'))]);
+            ->having({x | sum(~salary) > 100000})
+            ->orderBy([desc(~department)]);
             
    let sql = $df->toSQL(Database.REDSHIFT);
    
@@ -35,8 +35,8 @@ function <<test.Test>> meta::pure::dsl::tests::testToSQLWithRedshift(): Boolean[
 {
    // Create a simple SELECT query
    let df = select([
-      as(col('id'), 'id'),
-      as(col('name'), 'name')
+      as(~id, 'id'),
+      as(~name, 'name')
    ])->from(table('customers'));
    
    // Test toSQL function with Redshift database

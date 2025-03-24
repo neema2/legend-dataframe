@@ -192,7 +192,7 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBExpression(ex
 {
    $expr->match([
       l: LiteralExpression[1] | $l.value->generateDuckDBLiteral(),
-      c: ColumnReference[1] | if($c.tableAlias->isNotEmpty(), $c.tableAlias->toOne() + '.', '') + $c.columnName,
+      c: ColumnReference[1] | if($c.tableAlias->isNotEmpty(), $c.tableAlias->toOne() + '.', '') + $c.colSpec.name,
       f: FunctionExpression[1] | $f->generateDuckDBFunction(),
       b: BinaryOperation[1] | '(' + $b.left->generateDuckDBExpression() + ' ' + $b.operator->generateDuckDBBinaryOperator() + ' ' + $b.right->generateDuckDBExpression() + ')',
       u: UnaryOperation[1] | $u.operator->generateDuckDBUnaryOperator() + '(' + $u.expression->generateDuckDBExpression() + ')',

@@ -80,7 +80,7 @@ Class meta::pure::dsl::dataframe::metamodel::LiteralExpression extends Expressio
 // Column reference expression
 Class meta::pure::dsl::dataframe::metamodel::ColumnReference extends Expression
 {
-   columnName : String[1];
+   colSpec : ColSpec<Any>[1];
    tableAlias : String[0..1];
 }
 
@@ -224,6 +224,12 @@ function meta::pure::dsl::dataframe::~(names:String[*]):ColSpecArray<Any>[1]
     ^ColSpecArray<Any>(names=$names);
 }
 
+// Tilde notation for table aliases
+function meta::pure::dsl::dataframe::~(tableName: String[1], columnName: String[1]): ColumnReference[1]
+{
+   ^ColumnReference(colSpec = ^ColSpec<Any>(name = $columnName), tableAlias = $tableName)
+}
+
 // Table-aware tilde notation for single column reference
 function meta::pure::dsl::dataframe::~<T>(schema: TableSchema<T>[1], name: String[1]): ColSpec<T>[1]
 {
@@ -359,7 +365,7 @@ function meta::pure::dsl::dataframe::newDataFrame(): DataFrame[1]
 function meta::pure::dsl::dataframe::select<T>(cols: ColSpecArray<T>[1]): DataFrame[1]
 {
    // Create columns from ColSpecArray
-   let columns = $cols.names->map(n | ^Column(name = $n, expression = ^ColumnReference(columnName = $n), alias = $n));
+   let columns = $cols.names->map(n | ^Column(name = $n, expression = ^ColumnReference(colSpec = ^ColSpec<T>(name = $n, tableSchema = $cols.tableSchema)), alias = $n));
    
    ^DataFrame(columns = $columns, distinct = false);
 }
@@ -367,7 +373,7 @@ function meta::pure::dsl::dataframe::select<T>(cols: ColSpecArray<T>[1]): DataFr
 function meta::pure::dsl::dataframe::select<T>(col: ColSpec<T>[1]): DataFrame[1]
 {
    // Create column from ColSpec
-   let column = ^Column(name = $col.name, expression = ^ColumnReference(columnName = $col.name), alias = $col.name);
+   let column = ^Column(name = $col.name, expression = ^ColumnReference(colSpec = $col), alias = $col.name);
    
    ^DataFrame(columns = [$column], distinct = false);
 }
@@ -381,7 +387,7 @@ function meta::pure::dsl::dataframe::select(columns: Column[*]): DataFrame[1]
 function meta::pure::dsl::dataframe::selectDistinct<T>(cols: ColSpecArray<T>[1]): DataFrame[1]
 {
    // Create columns from ColSpecArray
-   let columns = $cols.names->map(n | ^Column(name = $n, expression = ^ColumnReference(columnName = $n), alias = $n));
+   let columns = $cols.names->map(n | ^Column(name = $n, expression = ^ColumnReference(colSpec = ^ColSpec<T>(name = $n, tableSchema = $cols.tableSchema)), alias = $n));
    
    ^DataFrame(columns = $columns, distinct = true);
 }
@@ -389,7 +395,7 @@ function meta::pure::dsl::dataframe::selectDistinct<T>(cols: ColSpecArray<T>[1])
 function meta::pure::dsl::dataframe::selectDistinct<T>(col: ColSpec<T>[1]): DataFrame[1]
 {
    // Create column from ColSpec
-   let column = ^Column(name = $col.name, expression = ^ColumnReference(columnName = $col.name), alias = $col.name);
+   let column = ^Column(name = $col.name, expression = ^ColumnReference(colSpec = $col), alias = $col.name);
    
    ^DataFrame(columns = [$column], distinct = true);
 }
@@ -432,7 +438,7 @@ function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], tableSchema: Ta
 function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
 {
    // Create column references from ColSpecArray
-   let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+   let colRefs = $cols.names->map(n | ^ColumnReference(colSpec = ^ColSpec<Z>(name = $n, tableSchema = $cols.tableSchema)));
    
    ^$df(groupBy = ^GroupByClause(columns = $colRefs));
 }
@@ -440,7 +446,7 @@ function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], cols: ColSp
 function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
 {
    // Create column reference
-   let colRef = ^ColumnReference(columnName = $col.name);
+   let colRef = ^ColumnReference(colSpec = $col);
    
    ^$df(groupBy = ^GroupByClause(columns = [$colRef]));
 }
@@ -453,7 +459,7 @@ function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], tableSchema
    if($invalidColumns->isEmpty(),
       {
          // Create column references from ColSpecArray
-         let colRefs = $cols.names->map(n | ^ColumnReference(columnName = $n));
+         let colRefs = $cols.names->map(n | ^ColumnReference(colSpec = ^ColSpec<Any>(name = $n)));
          
          ^$df(groupBy = ^GroupByClause(columns = $colRefs));
       },
@@ -476,7 +482,7 @@ function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], cols: ColSp
 {
    let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
    let clauses = $cols.names->map(n | ^OrderByClause(
-      expression = ^ColumnReference(columnName = $n),
+      expression = ^ColumnReference(colSpec = ^ColSpec<Z>(name = $n, tableSchema = $cols.tableSchema)),
       direction = $direction
    ));
    ^$df(orderBy = $clauses);
@@ -486,7 +492,7 @@ function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], col: ColSpe
 {
    let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
    let clause = ^OrderByClause(
-      expression = ^ColumnReference(columnName = $col.name),
+      expression = ^ColumnReference(colSpec = $col),
       direction = $direction
    );
    ^$df(orderBy = [$clause]);
@@ -501,10 +507,10 @@ function meta::pure::dsl::dataframe::orderBy<T, Z>(df: DataFrame[1], tableSchema
       {
          let direction = if($desc->isNotEmpty() && $desc->toOne(), |SortDirection.DESC, |SortDirection.ASC);
          let clauses = $cols.names->map(n | ^OrderByClause(
-            expression = ^ColumnReference(columnName = $n),
+            expression = ^ColumnReference(colSpec = ^ColSpec<Z>(name = $n, tableSchema = $cols.tableSchema)),
             direction = $direction
-         ));
-         ^$df(orderBy = $clauses);
+          ));
+          ^$df(orderBy = $clauses);
       },
       error('Columns [' + $invalidColumns->joinStrings(', ') + '] not found in table schema "' + $tableSchema.name + '"')
    );
@@ -526,15 +532,7 @@ function meta::pure::dsl::dataframe::offset(df: DataFrame[1], offset: Integer[1]
 }
 
 // Helper functions for creating expressions
-function meta::pure::dsl::dataframe::col(name: String[1]): ColumnReference[1]
-{
-   ^ColumnReference(columnName = $name)
-}
-
-function meta::pure::dsl::dataframe::col(tableName: String[1], columnName: String[1]): ColumnReference[1]
-{
-   ^ColumnReference(columnName = $columnName, tableAlias = $tableName)
-}
+// col() functions have been removed in favor of tilde notation
 
 function meta::pure::dsl::dataframe::literal(value: Any[1]): LiteralExpression[1]
 {
@@ -614,7 +612,17 @@ function meta::pure::dsl::dataframe::join(left: DataSource[1], right: DataSource
    ^JoinOperation(left = $left, right = $right, joinType = JoinType.INNER, condition = $condition)
 }
 
+function meta::pure::dsl::dataframe::join<T, V>(left: DataSource[1], right: DataSource[1], condition: Function<{T[1], V[1]->Boolean[1]}>[1]): JoinOperation[1]
+{
+   ^JoinOperation(left = $left, right = $right, joinType = JoinType.INNER, condition = $condition)
+}
+
 function meta::pure::dsl::dataframe::leftJoin(left: DataSource[1], right: DataSource[1], condition: FilterCondition[1]): JoinOperation[1]
+{
+   ^JoinOperation(left = $left, right = $right, joinType = JoinType.LEFT_OUTER, condition = $condition)
+}
+
+function meta::pure::dsl::dataframe::leftJoin<T, V>(left: DataSource[1], right: DataSource[1], condition: Function<{T[1], V[1]->Boolean[1]}>[1]): JoinOperation[1]
 {
    ^JoinOperation(left = $left, right = $right, joinType = JoinType.LEFT_OUTER, condition = $condition)
 }
@@ -624,7 +632,17 @@ function meta::pure::dsl::dataframe::rightJoin(left: DataSource[1], right: DataS
    ^JoinOperation(left = $left, right = $right, joinType = JoinType.RIGHT_OUTER, condition = $condition)
 }
 
+function meta::pure::dsl::dataframe::rightJoin<T, V>(left: DataSource[1], right: DataSource[1], condition: Function<{T[1], V[1]->Boolean[1]}>[1]): JoinOperation[1]
+{
+   ^JoinOperation(left = $left, right = $right, joinType = JoinType.RIGHT_OUTER, condition = $condition)
+}
+
 function meta::pure::dsl::dataframe::fullJoin(left: DataSource[1], right: DataSource[1], condition: FilterCondition[1]): JoinOperation[1]
+{
+   ^JoinOperation(left = $left, right = $right, joinType = JoinType.FULL_OUTER, condition = $condition)
+}
+
+function meta::pure::dsl::dataframe::fullJoin<T, V>(left: DataSource[1], right: DataSource[1], condition: Function<{T[1], V[1]->Boolean[1]}>[1]): JoinOperation[1]
 {
    ^JoinOperation(left = $left, right = $right, joinType = JoinType.FULL_OUTER, condition = $condition)
 }
@@ -640,9 +658,19 @@ function meta::pure::dsl::dataframe::count(expr: Expression[1]): CountFunction[1
    ^CountFunction(functionName = 'count', parameters = [$expr], distinct = false)
 }
 
+function meta::pure::dsl::dataframe::count<T>(col: ColSpec<T>[1]): CountFunction[1]
+{
+   ^CountFunction(functionName = 'count', parameters = [$col], distinct = false)
+}
+
 function meta::pure::dsl::dataframe::countDistinct(expr: Expression[1]): CountFunction[1]
 {
    ^CountFunction(functionName = 'count', parameters = [$expr], distinct = true)
+}
+
+function meta::pure::dsl::dataframe::countDistinct<T>(col: ColSpec<T>[1]): CountFunction[1]
+{
+   ^CountFunction(functionName = 'count', parameters = [$col], distinct = true)
 }
 
 // Type-safe aggregate functions
@@ -697,9 +725,19 @@ function meta::pure::dsl::dataframe::sum(expr: Expression[1]): SumFunction[1]
    ^SumFunction(functionName = 'sum', parameters = [$expr])
 }
 
+function meta::pure::dsl::dataframe::sum<T>(col: ColSpec<T>[1]): SumFunction[1]
+{
+   ^SumFunction(functionName = 'sum', parameters = [$col])
+}
+
 function meta::pure::dsl::dataframe::avg(expr: Expression[1]): AvgFunction[1]
 {
    ^AvgFunction(functionName = 'avg', parameters = [$expr])
+}
+
+function meta::pure::dsl::dataframe::avg<T>(col: ColSpec<T>[1]): AvgFunction[1]
+{
+   ^AvgFunction(functionName = 'avg', parameters = [$col])
 }
 
 function meta::pure::dsl::dataframe::min(expr: Expression[1]): MinFunction[1]
@@ -707,9 +745,19 @@ function meta::pure::dsl::dataframe::min(expr: Expression[1]): MinFunction[1]
    ^MinFunction(functionName = 'min', parameters = [$expr])
 }
 
+function meta::pure::dsl::dataframe::min<T>(col: ColSpec<T>[1]): MinFunction[1]
+{
+   ^MinFunction(functionName = 'min', parameters = [$col])
+}
+
 function meta::pure::dsl::dataframe::max(expr: Expression[1]): MaxFunction[1]
 {
    ^MaxFunction(functionName = 'max', parameters = [$expr])
+}
+
+function meta::pure::dsl::dataframe::max<T>(col: ColSpec<T>[1]): MaxFunction[1]
+{
+   ^MaxFunction(functionName = 'max', parameters = [$col])
 }
 
 // Helper functions for creating order by clauses
@@ -780,12 +828,12 @@ function meta::pure::dsl::dataframe::over(expr: Expression[1], window: Window[1]
 // OrderBy helper functions
 function meta::pure::dsl::dataframe::asc<T>(col: ColSpec<T>[1]): OrderByClause[1]
 {
-   ^OrderByClause(expression = col($col.name), direction = SortDirection.ASC);
+   ^OrderByClause(expression = ^ColumnReference(colSpec = $col), direction = SortDirection.ASC);
 }
 
 function meta::pure::dsl::dataframe::desc<T>(col: ColSpec<T>[1]): OrderByClause[1]
 {
-   ^OrderByClause(expression = col($col.name), direction = SortDirection.DESC);
+   ^OrderByClause(expression = ^ColumnReference(colSpec = $col), direction = SortDirection.DESC);
 }
 
 function meta::pure::dsl::dataframe::getFunctionName(expr: Expression[1]): String[1]
@@ -810,7 +858,7 @@ function
    meta::pure::dsl::dataframe::over<T>(cols: ColSpec<(?:?)⊆T>[1]): Window[1]
 {
    ^Window(
-      partitionBy = [col($cols.name)]
+      partitionBy = [~$cols.name]
    );
 }
 
@@ -820,7 +868,7 @@ function
    meta::pure::dsl::dataframe::over<T>(cols: ColSpecArray<(?:?)⊆T>[1]): Window[1]
 {
    ^Window(
-      partitionBy = $cols.names->map(c | col($c))
+      partitionBy = $cols.names->map(c | ~$c)
    );
 }
 
@@ -850,7 +898,7 @@ function
    meta::pure::dsl::dataframe::over<T>(cols: ColSpec<(?:?)⊆T>[1], orderBy: OrderByClause[*]): Window[1]
 {
    ^Window(
-      partitionBy = [col($cols.name)],
+      partitionBy = [~$cols.name],
       orderBy = $orderBy
    );
 }
@@ -861,7 +909,7 @@ function
    meta::pure::dsl::dataframe::over<T>(cols: ColSpecArray<(?:?)⊆T>[1], orderBy: OrderByClause[*]): Window[1]
 {
    ^Window(
-      partitionBy = $cols.names->map(c | col($c)),
+      partitionBy = $cols.names->map(c | ~$c),
       orderBy = $orderBy
    );
 }
@@ -872,7 +920,7 @@ function
    meta::pure::dsl::dataframe::over<T>(cols: ColSpec<(?:?)⊆T>[1], frame: Frame[1]): Window[1]
 {
    ^Window(
-      partitionBy = [col($cols.name)],
+      partitionBy = [~$cols.name],
       frame = $frame
    );
 }
@@ -880,6 +928,11 @@ function
 function meta::pure::dsl::dataframe::partitionBy(columns: Expression[*]): Window[1]
 {
    ^Window(partitionBy = $columns, orderBy = []);
+}
+
+function meta::pure::dsl::dataframe::partitionBy<T>(columns: ColSpec<T>[*]): Window[1]
+{
+   ^Window(partitionBy = $columns->map(c | ^ColumnReference(colSpec = $c)), orderBy = []);
 }
 
 function meta::pure::dsl::dataframe::orderBy(window: Window[1], clauses: OrderByClause[*]): Window[1]
@@ -1020,9 +1073,19 @@ function meta::pure::dsl::dataframe::sum(expr: Expression[1]): FunctionExpressio
    ^FunctionExpression(functionName = 'sum', parameters = [$expr]);
 }
 
+function meta::pure::dsl::dataframe::sum<T>(col: ColSpec<T>[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'sum', parameters = [$col]);
+}
+
 function meta::pure::dsl::dataframe::avg(expr: Expression[1]): FunctionExpression[1]
 {
    ^FunctionExpression(functionName = 'avg', parameters = [$expr]);
+}
+
+function meta::pure::dsl::dataframe::avg<T>(col: ColSpec<T>[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'avg', parameters = [$col]);
 }
 
 function meta::pure::dsl::dataframe::min(expr: Expression[1]): FunctionExpression[1]
@@ -1030,14 +1093,29 @@ function meta::pure::dsl::dataframe::min(expr: Expression[1]): FunctionExpressio
    ^FunctionExpression(functionName = 'min', parameters = [$expr]);
 }
 
+function meta::pure::dsl::dataframe::min<T>(col: ColSpec<T>[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'min', parameters = [$col]);
+}
+
 function meta::pure::dsl::dataframe::max(expr: Expression[1]): FunctionExpression[1]
 {
    ^FunctionExpression(functionName = 'max', parameters = [$expr]);
 }
 
+function meta::pure::dsl::dataframe::max<T>(col: ColSpec<T>[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'max', parameters = [$col]);
+}
+
 function meta::pure::dsl::dataframe::count(expr: Expression[1]): FunctionExpression[1]
 {
    ^FunctionExpression(functionName = 'count', parameters = [$expr]);
+}
+
+function meta::pure::dsl::dataframe::count<T>(col: ColSpec<T>[1]): FunctionExpression[1]
+{
+   ^FunctionExpression(functionName = 'count', parameters = [$col]);
 }
 
 // WITH clause helper functions
@@ -1084,7 +1162,7 @@ function meta::pure::dsl::dataframe::fromTDS<T>(tds: TDS<T>[1]): DataFrame[1]
    
    // Create columns from TDS
    let columns = $columnNames->map(name | 
-      ^Column(name = $name, expression = ^ColumnReference(columnName = $name), alias = $name)
+      ^Column(name = $name, expression = ^ColumnReference(colSpec = ^ColSpec<T>(name = $name)), alias = $name)
    );
    
    // Create DataFrame from TDS
@@ -1105,7 +1183,7 @@ function meta::pure::dsl::dataframe::parseTDSLiteral(tdsText: String[1]): DataFr
    
    // Create columns
    let columns = $columnNames->map(name | 
-      ^Column(name = $name, expression = ^ColumnReference(columnName = $name), alias = $name)
+      ^Column(name = $name, expression = ^ColumnReference(colSpec = ^ColSpec<T>(name = $name)), alias = $name)
    );
    
    // Create DataFrame

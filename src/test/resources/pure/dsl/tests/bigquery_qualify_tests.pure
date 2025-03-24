@@ -19,12 +19,12 @@ import meta::pure::dsl::bigquery::*;
 function <<meta::pure::profiles::test.Test>> {meta.pure.profiles.test.AlloyOnly} meta::pure::dsl::tests::testBigQueryQualify(): Boolean[1]
 {
    // Create a SELECT query with a QUALIFY clause
-   let windowFunc = rank()->over(partitionBy([col('department')]), [asc(col('salary'))]);
+   let windowFunc = rank()->over(partitionBy([~department]), [asc(~salary)]);
    let df = select([
-      as(col('id'), 'id'),
-      as(col('name'), 'name'),
-      as(col('department'), 'department'),
-      as(col('salary'), 'salary')
+      as(~id, 'id'),
+      as(~name, 'name'),
+      as(~department, 'department'),
+      as(~salary, 'salary')
    ])
    ->from(table('employees'))
    ->qualify({x | $windowFunc < 3});

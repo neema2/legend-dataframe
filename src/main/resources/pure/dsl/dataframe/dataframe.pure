@@ -298,6 +298,7 @@ Class meta::pure::dsl::dataframe::metamodel::AggColSpec<K, V, R>
    name: String[1];
    keyFunc: K[1];
    valueFunc: V[1];
+   functionExpression: FunctionExpression[0..1]; // Store function expression for SQL generation
 }
 
 Class meta::pure::dsl::dataframe::metamodel::AggColSpecArray<K, V, R>
@@ -781,7 +782,8 @@ function meta::pure::dsl::dataframe::sum<T>(col: ColSpec<T>[1]): AggColSpec<{T[1
    ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>(
       name = 'sum_' + $col.name,
       keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->sum()}
+      valueFunc = {values:Any[*] | $values->sum()},
+      functionExpression = ^FunctionExpression(functionName = 'sum', parameters = [^ColumnReference(colSpec = $col)])
    );
 }
 
@@ -790,7 +792,8 @@ function meta::pure::dsl::dataframe::avg<T>(col: ColSpec<T>[1]): AggColSpec<{T[1
    ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>(
       name = 'avg_' + $col.name,
       keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->average()}
+      valueFunc = {values:Any[*] | $values->average()},
+      functionExpression = ^FunctionExpression(functionName = 'avg', parameters = [^ColumnReference(colSpec = $col)])
    );
 }
 
@@ -799,7 +802,8 @@ function meta::pure::dsl::dataframe::min<T>(col: ColSpec<T>[1]): AggColSpec<{T[1
    ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>(
       name = 'min_' + $col.name,
       keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->min()}
+      valueFunc = {values:Any[*] | $values->min()},
+      functionExpression = ^FunctionExpression(functionName = 'min', parameters = [^ColumnReference(colSpec = $col)])
    );
 }
 
@@ -808,7 +812,8 @@ function meta::pure::dsl::dataframe::max<T>(col: ColSpec<T>[1]): AggColSpec<{T[1
    ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>(
       name = 'max_' + $col.name,
       keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->max()}
+      valueFunc = {values:Any[*] | $values->max()},
+      functionExpression = ^FunctionExpression(functionName = 'max', parameters = [^ColumnReference(colSpec = $col)])
    );
 }
 
@@ -817,9 +822,27 @@ function meta::pure::dsl::dataframe::count<T>(col: ColSpec<T>[1]): AggColSpec<{T
    ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Integer[0..1]},Any>(
       name = 'count_' + $col.name,
       keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->size()}
+      valueFunc = {values:Any[*] | $values->size()},
+      functionExpression = ^FunctionExpression(functionName = 'count', parameters = [^ColumnReference(colSpec = $col)])
    );
 }
+
+// General-purpose function to create an AggColSpec with any function expression
+function meta::pure::dsl::dataframe::aggFunc<T, R>(
+   name: String[1], 
+   keyFunc: Function<{T[1]->Any[0..1]}>[1], 
+   valueFunc: Function<{Any[*]->Any[0..1]}>[1],
+   funcExpr: FunctionExpression[1]
+): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},R>[1]
+{
+   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},R>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = $valueFunc,
+      functionExpression = $funcExpr
+   );
+}
+
 
 // Legacy functions for backward compatibility
 function meta::pure::dsl::dataframe::sum(expr: Expression[1]): SumFunction[1]

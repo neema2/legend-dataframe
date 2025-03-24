@@ -342,17 +342,21 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBGroupBy(op: G
 // Helper function to generate SQL for AggColSpec
 function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBAggregation(agg: AggColSpec<Any, Any, Any>[1]): String[1]
 {
-   // Extract the aggregation function and column from the lambda expression
-   // This is a simplified implementation that would need to be expanded based on the actual lambda structure
-   let funcName = if($agg.name->startsWith('sum_'), 'SUM',
-                  if($agg.name->startsWith('avg_'), 'AVG',
-                  if($agg.name->startsWith('min_'), 'MIN',
-                  if($agg.name->startsWith('max_'), 'MAX',
-                  if($agg.name->startsWith('count_'), 'COUNT', 'UNKNOWN')))));
-   
-   let colName = $agg.name->substring($agg.name->indexOf('_') + 1, $agg.name->length());
-   
-   $funcName + '(' + $colName + ')';
+   if($agg.functionExpression->isNotEmpty(),
+      | $agg.functionExpression->toOne()->generateDuckDBFunction(),
+      | {
+         // Legacy fallback using naming convention
+         let funcName = if($agg.name->startsWith('sum_'), 'SUM',
+                        if($agg.name->startsWith('avg_'), 'AVG',
+                        if($agg.name->startsWith('min_'), 'MIN',
+                        if($agg.name->startsWith('max_'), 'MAX',
+                        if($agg.name->startsWith('count_'), 'COUNT', 'UNKNOWN')))));
+         
+         let colName = $agg.name->substring($agg.name->indexOf('_') + 1, $agg.name->length());
+         
+         $funcName + '(' + $colName + ')';
+      }->eval()
+   );
 }
 
 function <<access.private>> meta::pure::dsl::duckdb::generateSQLFromWindowSpec(windowSpec: WindowSpec[1]): String[1]

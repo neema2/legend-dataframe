@@ -173,3 +173,41 @@ function <<test.Test>> meta::pure::dsl::tests::testGroupByLambdaWithOrderBy(): B
    
    true;
 }
+
+function <<test.Test>> meta::pure::dsl::tests::testGroupByWithCustomFunction(): Boolean[1]
+{
+   // Create a DataFrame with orders data
+   let df = table('orders');
+   
+   // Create a custom aggregation that applies a user-defined function
+   let customAgg = ^AggColSpec<{Any[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>(
+      name = 'custom_agg',
+      keyFunc = {x:Any[1] | $x->get('amount')},
+      valueFunc = {values:Any[*] | $values->sum()},
+      functionExpression = ^FunctionExpression(
+         functionName = 'ROUND',
+         parameters = [
+            ^FunctionExpression(
+               functionName = 'AVG',
+               parameters = [^ColumnReference(colSpec = ^ColSpec<Any>(name = 'amount'))]
+            ),
+            ^LiteralExpression(value = 2)
+         ]
+      )
+   );
+   
+   // Group by customer_id with custom aggregation
+   let result = $df->groupBy(~customer_id, $customAgg);
+   
+   // Generate SQL for each supported database
+   let duckSQL = $result->generateDuckDBSQL();
+   assertEquals(true, $duckSQL->contains('ROUND(AVG(amount), 2)'));
+   
+   let snowflakeSQL = $result->generateSnowflakeSQL();
+   assertEquals(true, $snowflakeSQL->contains('ROUND(AVG(amount), 2)'));
+   
+   let bigquerySQL = $result->generateBigQuerySQL();
+   assertEquals(true, $bigquerySQL->contains('ROUND(AVG(amount), 2)'));
+   
+   true;
+}

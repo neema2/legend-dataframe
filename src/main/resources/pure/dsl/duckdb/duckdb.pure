@@ -92,7 +92,11 @@ function <<access.private>> meta::pure::dsl::duckdb::generateGroupByClause(df: D
 {
    if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
       '', 
-      '\nGROUP BY ' + $df.groupBy.columns->map(c | $c->generateDuckDBExpression())->joinStrings(', '))
+      '\nGROUP BY ' + $df.groupBy.columns->match([
+         c: ColSpec<Any>[1] | $c.name,
+         c: ColSpecArray<Any>[1] | $c.names->joinStrings(', '),
+         _: Expression[*] | $df.groupBy.columns->map(c | $c->generateDuckDBExpression())->joinStrings(', ')
+      ]))
 }
 
 // Generate the HAVING clause
@@ -301,6 +305,52 @@ function <<access.private>> meta::pure::dsl::duckdb::generateSQLFromAggColSpec<K
                   if($aggColSpec.name->startsWith('count_'), 'COUNT', 'UNKNOWN')))));
    
    let colName = $aggColSpec.name->substring($aggColSpec.name->indexOf('_') + 1, $aggColSpec.name->length());
+   
+   $funcName + '(' + $colName + ')';
+}
+
+// Generate SQL for AggColSpecArray
+function <<access.private>> meta::pure::dsl::duckdb::generateSQLFromAggColSpecArray<K, V, R>(aggColSpecs: AggColSpecArray<K, V, R>[1]): String[1]
+{
+   $aggColSpecs.specs->map(s | generateSQLFromAggColSpec($s))->joinStrings(', ');
+}
+
+// Generate SQL for GroupByOperation
+function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBGroupBy(op: GroupByOperation[1]): String[1]
+{
+   let columnsStr = $op.columns->match([
+      c: ColSpec<Any>[1] | $c.name,
+      c: ColSpecArray<Any>[1] | $c.names->joinStrings(', '),
+      _: Expression[*] | $op.columns->map(c | $c->generateDuckDBExpression())->joinStrings(', ')
+   ]);
+
+   let aggregationsStr = $op.aggregations->match([
+      a: AggColSpec<Any, Any, Any>[1] | $a.name + ' = ' + generateDuckDBAggregation($a),
+      a: AggColSpecArray<Any, Any, Any>[1] | $a.specs->map(s | $s.name + ' = ' + generateDuckDBAggregation($s))->joinStrings(', '),
+      _: Expression[*] | $op.aggregations->map(a | $a->generateDuckDBExpression())->joinStrings(', ')
+   ]);
+
+   let selectClause = if($columnsStr->isEmpty(), 
+                        $aggregationsStr, 
+                        $columnsStr + if($aggregationsStr->isEmpty(), '', ', ' + $aggregationsStr));
+
+   'SELECT ' + $selectClause + ' ' +
+   'FROM (' + $op.source->generateDuckDBSQL() + ') AS _inner_subquery ' +
+   'GROUP BY ' + $columnsStr;
+}
+
+// Helper function to generate SQL for AggColSpec
+function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBAggregation(agg: AggColSpec<Any, Any, Any>[1]): String[1]
+{
+   // Extract the aggregation function and column from the lambda expression
+   // This is a simplified implementation that would need to be expanded based on the actual lambda structure
+   let funcName = if($agg.name->startsWith('sum_'), 'SUM',
+                  if($agg.name->startsWith('avg_'), 'AVG',
+                  if($agg.name->startsWith('min_'), 'MIN',
+                  if($agg.name->startsWith('max_'), 'MAX',
+                  if($agg.name->startsWith('count_'), 'COUNT', 'UNKNOWN')))));
+   
+   let colName = $agg.name->substring($agg.name->indexOf('_') + 1, $agg.name->length());
    
    $funcName + '(' + $colName + ')';
 }

@@ -21,7 +21,7 @@ function <<meta::pure::profiles::test.Test>> {meta.pure.profiles.test.AlloyOnly}
    let df = table('employees')
             ->filter({x | $x.salary > 50000})
             ->select({x | [~name, ~department, ~salary]})
-            ->groupBy([~department])
+            ->groupBy(~department, ~total_salary : x | $x.salary : y | $y->sum())
             ->having({x | sum(~salary) > 100000})
             ->orderBy([desc(~department)]);
             

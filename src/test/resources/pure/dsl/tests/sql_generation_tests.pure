@@ -127,10 +127,9 @@ function <<test.Test>> meta::pure::dsl::tests::testHarmonizedSQLGeneration(): Bo
       ->filter({e | $e.salary > 50000})
       ->join(table('departments'), {e, d | $e.department_id == $d.id})
       ->select({row | [~id, ~name, ~department_name, ~salary]})
-      ->groupBy([~department_name])
-      ->extend([
-         count()->as('employee_count'),
-         avg(~salary)->as('avg_salary')
+      ->groupBy(~department_name, ~[
+         employee_count : x | $x.id : y | $y->size(),
+         avg_salary : x | $x.salary : y | $y->average()
       ])
       ->orderBy([desc(~avg_salary)]);
    

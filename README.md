@@ -58,10 +58,9 @@ let filtered = $df->filter({x | $x.salary > 50000 && $x.department == 'Engineeri
 let selected = $df->select({x | [~id, ~name, ~salary]});
 
 // Group by and aggregate
-let summary = $df->groupBy([~department])
-                ->extend([
-                   avg(~salary)->as('avg_salary'),
-                   count()->as('employee_count')
+let summary = $df->groupBy(~department, ~[
+                   avg_salary : x | $x.salary : y | $y->average(),
+                   employee_count : x | $x.id : y | $y->size()
                 ]);
 ```
 

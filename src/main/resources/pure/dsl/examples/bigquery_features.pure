@@ -65,10 +65,9 @@ function <<functionType.Example>> meta::pure::dsl::examples::bigquery::privacyEx
 {
    // Example of WITH DIFFERENTIAL_PRIVACY
    let privacyExample = table('salary_data')
-      ->groupBy([~department, ~position])
-      ->extend([
-         avg(~salary)->as('avg_salary'),
-         count(~id)->as('employee_count')
+      ->groupBy(~[department, position], ~[
+         avg_salary : x | $x.salary : y | $y->average(),
+         employee_count : x | $x.id : y | $y->size()
       ])
       ->withDifferentialPrivacy(0.1, 0.001, 1.0);
    
@@ -78,10 +77,9 @@ function <<functionType.Example>> meta::pure::dsl::examples::bigquery::privacyEx
    
    // Example of WITH AGGREGATION_THRESHOLD
    let thresholdExample = table('salary_data')
-      ->groupBy([~department, ~position])
-      ->extend([
-         avg(~salary)->as('avg_salary'),
-         count(~id)->as('employee_count')
+      ->groupBy(~[department, position], ~[
+         avg_salary : x | $x.salary : y | $y->average(),
+         employee_count : x | $x.id : y | $y->size()
       ])
       ->withAggregationThreshold(10, 'NULL');
    
@@ -97,12 +95,11 @@ function <<functionType.Example>> meta::pure::dsl::examples::bigquery::combinedE
       ->asStruct()
       ->except(['ssn', 'bank_account'])
       ->filter({e | $e.status == 'ACTIVE'})
-      ->groupBy([~department, ~position])
-      ->extend([
-         count(~id)->as('count'),
-         avg(~salary)->as('avg_salary'),
-         min(~salary)->as('min_salary'),
-         max(~salary)->as('max_salary')
+      ->groupBy(~[department, position], ~[
+         count : x | $x.id : y | $y->size(),
+         avg_salary : x | $x.salary : y | $y->average(),
+         min_salary : x | $x.salary : y | $y->min(),
+         max_salary : x | $x.salary : y | $y->max()
       ])
       ->orderBy([desc(~count)])
       ->withDifferentialPrivacy(0.1, SensitivityType.MEAN, 10000.0)
@@ -126,10 +123,9 @@ function <<functionType.Example>> meta::pure::dsl::examples::bigquery::inlineTDS
    // Query using inline TDS
    let query = $inlineData
       ->filter({e | $e.salary > 95000})
-      ->groupBy([~department])
-      ->extend([
-         count()->as('employee_count'),
-         avg(~salary)->as('avg_salary')
+      ->groupBy(~department, ~[
+         employee_count : x | $x.id : y | $y->size(),
+         avg_salary : x | $x.salary : y | $y->average()
       ])
       ->orderBy([desc(~avg_salary)]);
    

@@ -92,10 +92,11 @@ function <<test.Test>> meta::pure::dsl::tests::testSelectWithGroupBy(): Boolean[
 {
    // Create a SELECT query with GROUP BY and aggregate functions
    let df = select([
-      as(~category, 'category'),
-      as(count(~id), 'count'),
-      as(sum(~amount), 'total_amount')
-   ])->from(table('orders'))->groupBy([~category]);
+      as(~category, 'category')
+   ])->from(table('orders'))->groupBy(~category, ~[
+      count : x | $x.id : y | $y->size(),
+      total_amount : x | $x.amount : y | $y->sum()
+   ]);
    
    // Generate SQL for Snowflake
    let snowflakeSQL = $df->generateSnowflakeSQL();
@@ -159,9 +160,10 @@ function <<test.Test>> meta::pure::dsl::tests::testComplexQuery(): Boolean[1]
          tableAs('orders', 'o'),
          {c, o | $c.id == $o.category_id}
       )
-   )->filter({x | $x.o.amount > 100 && $x.o.customer_id != null})->groupBy([
-      ~('c', 'category')
-   ])->having({x | count(~('o', 'id')) > 5})->orderBy([
+   )->filter({x | $x.o.amount > 100 && $x.o.customer_id != null})->groupBy(
+      ~('c', 'category'),
+      ~order_count : x | $x.o.id : y | $y->size()
+   )->having({x | $x.order_count > 5})->orderBy([
       desc(sum(~('o', 'amount')))
    ])->limit(5);
    
@@ -430,7 +432,7 @@ function <<test.Test>> meta::pure::dsl::tests::testCommonTableExpressions(): Boo
       JoinType.INNER,
       {c, o | $c.id == $o.customer_id}
    ))
-   ->groupBy([~('c', 'name')])
+   ->groupBy(~('c', 'name'), ~total_orders : x | $x.o.amount : y | $y->sum())
    ->with([$customerCte, $orderCte]);
    
    // Generate SQL for all database types

@@ -114,8 +114,7 @@ function <<test.Test>> meta::pure::dsl::tests::testBigQueryAggregationThreshold(
 {
    // Test WITH AGGREGATION_THRESHOLD
    let df1 = table('employees')
-      ->groupBy([~department])
-      ->extend([count(~id)->as('employee_count')])
+      ->groupBy(~department, ~employee_count : x | $x.id : y | $y->size())
       ->withAggregationThreshold(10);
    
    let sql1 = $df1->generateBigQuerySQL();
@@ -124,8 +123,7 @@ function <<test.Test>> meta::pure::dsl::tests::testBigQueryAggregationThreshold(
    
    // Test WITH AGGREGATION_THRESHOLD with replacement
    let df2 = table('employees')
-      ->groupBy([~department])
-      ->extend([count(~id)->as('employee_count')])
+      ->groupBy(~department, ~employee_count : x | $x.id : y | $y->size())
       ->withAggregationThreshold(10, 'NULL');
    
    let sql2 = $df2->generateBigQuerySQL();

@@ -33,10 +33,9 @@ function meta::pure::dsl::examples::inlineTDSExamples(): Any[*]
    let namesAndSalaries = $employees->select({e | [~name, ~salary]});
    
    // Group by and aggregate
-   let deptSummary = $employees->groupBy([~department])
-                              ->extend([
-                                 avg(~salary)->as('avg_salary'),
-                                 count()->as('employee_count')
+   let deptSummary = $employees->groupBy(~department, ~[
+                                 avg_salary : x | $x.salary : y | $y->average(),
+                                 employee_count : x | $x.id : y | $y->size()
                               ]);
    
    // Order by salary descending

@@ -64,10 +64,10 @@ function meta::pure::dsl::examples::comprehensiveExample(): String[1]
          as(sum(~amount), 'monthly_total')
       ])
       ->from(tableWithSchema('orders', $orderSchema))
-      ->groupBy([
+      ->groupBy(~[
          extract('MONTH', ~order_date),
          extract('YEAR', ~order_date)
-      ])
+      ], ~monthly_total : x | $x.amount : y | $y->sum())
    );
    
    // Create CTE for customer ranking by region
@@ -89,11 +89,11 @@ function meta::pure::dsl::examples::comprehensiveExample(): String[1]
          JoinType.INNER,
          eq(~($customerSchema, 'id'), ~($orderSchema, 'customer_id'))
       ))
-      ->groupBy([
+      ->groupBy(~[
          ~($customerSchema, 'id'),
          ~($customerSchema, 'name'),
          ~($customerSchema, 'region')
-      ])
+      ], ~total_spent : x | $x.amount : y | $y->sum())
    );
    
    // Main query using CTEs and window functions

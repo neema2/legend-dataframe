@@ -292,6 +292,33 @@ Class meta::pure::dsl::dataframe::metamodel::MaxFunction extends AggregateFuncti
 {
 }
 
+// New classes for lambda-style aggregations
+Class meta::pure::dsl::dataframe::metamodel::AggColSpec<K, V, R>
+{
+   name: String[1];
+   keyFunc: K[1];
+   valueFunc: V[1];
+   functionExpression: FunctionExpression[0..1]; // Store function expression for SQL generation
+}
+
+Class meta::pure::dsl::dataframe::metamodel::AggColSpecArray<K, V, R>
+{
+   specs: AggColSpec<K, V, R>[*];
+}
+
+// Query operation base class
+Class meta::pure::dsl::dataframe::metamodel::QueryOperation
+{
+   source: DataSource[1];
+}
+
+// GroupBy operation class
+Class meta::pure::dsl::dataframe::metamodel::GroupByOperation extends QueryOperation
+{
+   columns: Expression[*];
+   aggregations: Expression[*];
+}
+
 // Window function classes
 Class meta::pure::dsl::dataframe::metamodel::WindowFunction extends FunctionExpression
 {
@@ -434,42 +461,118 @@ function meta::pure::dsl::dataframe::filter<T>(df: DataFrame[1], tableSchema: Ta
 
 // where() function has been removed in favor of filter()
 
-// Type-safe groupBy functions
-function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
+// Old groupBy functions have been removed in favor of lambda-style aggregation functions
+
+// GroupBy with single column and single aggregation
+function meta::pure::dsl::dataframe::groupBy<T, Z, K, V, R>(df: DataFrame[1], col: ColSpec<Z⊆T>[1], agg: AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]): DataFrame[1]
 {
-   // Create column references from ColSpecArray
-   let colRefs = $cols.names->map(n | ^ColumnReference(colSpec = ^ColSpec<Z>(name = $n, tableSchema = $cols.tableSchema)));
-   
-   ^$df(groupBy = ^GroupByClause(columns = $colRefs));
+   let dataSource = $df.dataSource;
+   $dataSource->match([
+      q: QueryableDataSource[1] | ^DataFrame(
+         dataSource = ^QueryableDataSource(
+            source = $q.source,
+            operation = ^GroupByOperation(
+               source = $q,
+               columns = $col,
+               aggregations = $agg
+            )
+         )
+      ),
+      _: DataSource[1] | ^DataFrame(
+         dataSource = ^QueryableDataSource(
+            source = $dataSource,
+            operation = ^GroupByOperation(
+               source = $dataSource,
+               columns = $col,
+               aggregations = $agg
+            )
+         )
+      )
+   ]);
 }
 
-function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], col: ColSpec<Z>[1]): DataFrame[1]
+// GroupBy with multiple columns and single aggregation
+function meta::pure::dsl::dataframe::groupBy<T, Z, K, V, R>(df: DataFrame[1], cols: ColSpecArray<Z⊆T>[1], agg: AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]): DataFrame[1]
 {
-   // Create column reference
-   let colRef = ^ColumnReference(colSpec = $col);
-   
-   ^$df(groupBy = ^GroupByClause(columns = [$colRef]));
+   let dataSource = $df.dataSource;
+   $dataSource->match([
+      q: QueryableDataSource[1] | ^DataFrame(
+         dataSource = ^QueryableDataSource(
+            source = $q.source,
+            operation = ^GroupByOperation(
+               source = $q,
+               columns = $cols,
+               aggregations = $agg
+            )
+         )
+      ),
+      _: DataSource[1] | ^DataFrame(
+         dataSource = ^QueryableDataSource(
+            source = $dataSource,
+            operation = ^GroupByOperation(
+               source = $dataSource,
+               columns = $cols,
+               aggregations = $agg
+            )
+         )
+      )
+   ]);
 }
 
-// Type-safe groupBy function with table schema validation
-function meta::pure::dsl::dataframe::groupBy<T, Z>(df: DataFrame[1], tableSchema: TableSchema<T>[1], cols: ColSpecArray<Z>[1]): DataFrame[1]
+// GroupBy with single column and multiple aggregations
+function meta::pure::dsl::dataframe::groupBy<T, Z, K, V, R>(df: DataFrame[1], col: ColSpec<Z⊆T>[1], aggs: AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]): DataFrame[1]
 {
-   // Validate columns against table schema
-   let invalidColumns = $cols.names->filter(n | !$tableSchema.columns->containsKey($n));
-   if($invalidColumns->isEmpty(),
-      {
-         // Create column references from ColSpecArray
-         let colRefs = $cols.names->map(n | ^ColumnReference(colSpec = ^ColSpec<Any>(name = $n)));
-         
-         ^$df(groupBy = ^GroupByClause(columns = $colRefs));
-      },
-      error('Columns [' + $invalidColumns->joinStrings(', ') + '] not found in table schema "' + $tableSchema.name + '"')
-   );
+   let dataSource = $df.dataSource;
+   $dataSource->match([
+      q: QueryableDataSource[1] | ^DataFrame(
+         dataSource = ^QueryableDataSource(
+            source = $q.source,
+            operation = ^GroupByOperation(
+               source = $q,
+               columns = $col,
+               aggregations = $aggs
+            )
+         )
+      ),
+      _: DataSource[1] | ^DataFrame(
+         dataSource = ^QueryableDataSource(
+            source = $dataSource,
+            operation = ^GroupByOperation(
+               source = $dataSource,
+               columns = $col,
+               aggregations = $aggs
+            )
+         )
+      )
+   ]);
 }
 
-function meta::pure::dsl::dataframe::groupBy(df: DataFrame[1], columns: Expression[*]): DataFrame[1]
+// GroupBy with multiple columns and multiple aggregations
+function meta::pure::dsl::dataframe::groupBy<T, Z, K, V, R>(df: DataFrame[1], cols: ColSpecArray<Z⊆T>[1], aggs: AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]): DataFrame[1]
 {
-   ^$df(groupBy = ^GroupByClause(columns = $columns))
+   let dataSource = $df.dataSource;
+   $dataSource->match([
+      q: QueryableDataSource[1] | ^DataFrame(
+         dataSource = ^QueryableDataSource(
+            source = $q.source,
+            operation = ^GroupByOperation(
+               source = $q,
+               columns = $cols,
+               aggregations = $aggs
+            )
+         )
+      ),
+      _: DataSource[1] | ^DataFrame(
+         dataSource = ^QueryableDataSource(
+            source = $dataSource,
+            operation = ^GroupByOperation(
+               source = $dataSource,
+               columns = $cols,
+               aggregations = $aggs
+            )
+         )
+      )
+   ]);
 }
 
 function meta::pure::dsl::dataframe::having(df: DataFrame[1], condition: FilterCondition[1]): DataFrame[1]
@@ -679,7 +782,8 @@ function meta::pure::dsl::dataframe::sum<T>(col: ColSpec<T>[1]): AggColSpec<{T[1
    ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>(
       name = 'sum_' + $col.name,
       keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->sum()}
+      valueFunc = {values:Any[*] | $values->sum()},
+      functionExpression = ^FunctionExpression(functionName = 'sum', parameters = [^ColumnReference(colSpec = $col)])
    );
 }
 
@@ -688,7 +792,8 @@ function meta::pure::dsl::dataframe::avg<T>(col: ColSpec<T>[1]): AggColSpec<{T[1
    ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Number[0..1]},Any>(
       name = 'avg_' + $col.name,
       keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->average()}
+      valueFunc = {values:Any[*] | $values->average()},
+      functionExpression = ^FunctionExpression(functionName = 'avg', parameters = [^ColumnReference(colSpec = $col)])
    );
 }
 
@@ -697,7 +802,8 @@ function meta::pure::dsl::dataframe::min<T>(col: ColSpec<T>[1]): AggColSpec<{T[1
    ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>(
       name = 'min_' + $col.name,
       keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->min()}
+      valueFunc = {values:Any[*] | $values->min()},
+      functionExpression = ^FunctionExpression(functionName = 'min', parameters = [^ColumnReference(colSpec = $col)])
    );
 }
 
@@ -706,7 +812,8 @@ function meta::pure::dsl::dataframe::max<T>(col: ColSpec<T>[1]): AggColSpec<{T[1
    ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},Any>(
       name = 'max_' + $col.name,
       keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->max()}
+      valueFunc = {values:Any[*] | $values->max()},
+      functionExpression = ^FunctionExpression(functionName = 'max', parameters = [^ColumnReference(colSpec = $col)])
    );
 }
 
@@ -715,9 +822,27 @@ function meta::pure::dsl::dataframe::count<T>(col: ColSpec<T>[1]): AggColSpec<{T
    ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Integer[0..1]},Any>(
       name = 'count_' + $col.name,
       keyFunc = {x:T[1] | $x->get($col.name)},
-      valueFunc = {values:Any[*] | $values->size()}
+      valueFunc = {values:Any[*] | $values->size()},
+      functionExpression = ^FunctionExpression(functionName = 'count', parameters = [^ColumnReference(colSpec = $col)])
    );
 }
+
+// General-purpose function to create an AggColSpec with any function expression
+function meta::pure::dsl::dataframe::aggFunc<T, R>(
+   name: String[1], 
+   keyFunc: Function<{T[1]->Any[0..1]}>[1], 
+   valueFunc: Function<{Any[*]->Any[0..1]}>[1],
+   funcExpr: FunctionExpression[1]
+): AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},R>[1]
+{
+   ^AggColSpec<{T[1]->Any[0..1]},{Any[*]->Any[0..1]},R>(
+      name = $name,
+      keyFunc = $keyFunc,
+      valueFunc = $valueFunc,
+      functionExpression = $funcExpr
+   );
+}
+
 
 // Legacy functions for backward compatibility
 function meta::pure::dsl::dataframe::sum(expr: Expression[1]): SumFunction[1]

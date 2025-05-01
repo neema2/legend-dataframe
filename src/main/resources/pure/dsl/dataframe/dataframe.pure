@@ -1010,6 +1010,95 @@ function meta::pure::dsl::dataframe::toFrameValue(bound: WindowFrameBound[1]): F
    ]);
 }
 
+// Convenience function to create a FrameValue from an Integer or UnboundedFrameValue
+function meta::pure::dsl::dataframe::toFrameValue(value: Integer[1]): FrameValue[1]
+{
+   if($value == 0, 
+      ^FrameIntValue(value = 0),
+      if($value > 0,
+         ^FrameIntValue(value = $value),
+         ^FrameIntValue(value = $value)
+      )
+   );
+}
+
+function meta::pure::dsl::dataframe::toFrameValue(value: UnboundedFrameValue[1]): FrameValue[1]
+{
+   $value;
+}
+
+// Convenience function to create an UnboundedFrameValue
+function meta::pure::dsl::dataframe::unbounded(): UnboundedFrameValue[1]
+{
+   ^UnboundedFrameValue();
+}
+
+// Convenience function to create a Rows frame with start and end bounds
+function meta::pure::dsl::dataframe::rows(start: Integer[1], end: Integer[1]): Frame[1]
+{
+   ^Rows(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::rows(start: UnboundedFrameValue[1], end: Integer[1]): Frame[1]
+{
+   ^Rows(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::rows(start: Integer[1], end: UnboundedFrameValue[1]): Frame[1]
+{
+   ^Rows(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::rows(start: UnboundedFrameValue[1], end: UnboundedFrameValue[1]): Frame[1]
+{
+   ^Rows(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+// Convenience function to create a Range frame with start and end bounds
+function meta::pure::dsl::dataframe::range(start: Integer[1], end: Integer[1]): Frame[1]
+{
+   ^Range(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::range(start: UnboundedFrameValue[1], end: Integer[1]): Frame[1]
+{
+   ^Range(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::range(start: Integer[1], end: UnboundedFrameValue[1]): Frame[1]
+{
+   ^Range(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
+function meta::pure::dsl::dataframe::range(start: UnboundedFrameValue[1], end: UnboundedFrameValue[1]): Frame[1]
+{
+   ^Range(
+      offsetFrom = toFrameValue($start),
+      offsetTo = toFrameValue($end)
+   );
+}
+
 
 // Window function factory functions
 function meta::pure::dsl::dataframe::rowNumber(): FunctionExpression[1]

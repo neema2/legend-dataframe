@@ -1,0 +1,169 @@
+// Copyright 2025 Neema Raphael
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import meta::pure::dsl::dataframe::*;
+import meta::pure::dsl::dataframe::metamodel::*;
+import meta::pure::dsl::snowflake::*;
+import meta::pure::dsl::duckdb::*;
+import meta::pure::dsl::bigquery::*;
+import meta::pure::dsl::databricks::*;
+import meta::pure::dsl::redshift::*;
+import meta::pure::dsl::postgres::*;
+
+/**
+ * Tests for lambda to SQL translation
+ */
+
+// Test simple filter conditions
+function <<test.Test>> meta::pure::dsl::tests::testSimpleFilterConditions(): Boolean[1]
+{
+   // Test equals condition
+   let df1 = table('employees')->filter({e | $e.salary == 50000});
+   let sql1 = $df1->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE salary = 50000', $sql1);
+   
+   // Test greater than condition
+   let df2 = table('employees')->filter({e | $e.salary > 50000});
+   let sql2 = $df2->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE salary > 50000', $sql2);
+   
+   // Test less than condition
+   let df3 = table('employees')->filter({e | $e.salary < 50000});
+   let sql3 = $df3->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE salary < 50000', $sql3);
+   
+   true;
+}
+
+// Test complex filter conditions
+function <<test.Test>> meta::pure::dsl::tests::testComplexFilterConditions(): Boolean[1]
+{
+   // Test AND condition
+   let df1 = table('employees')->filter({e | $e.salary > 50000 && $e.department == 'Engineering'});
+   let sql1 = $df1->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE (salary > 50000 AND department = \'Engineering\')', $sql1);
+   
+   // Test OR condition
+   let df2 = table('employees')->filter({e | $e.salary > 100000 || $e.title == 'Manager'});
+   let sql2 = $df2->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE (salary > 100000 OR title = \'Manager\')', $sql2);
+   
+   // Test NOT condition
+   let df3 = table('employees')->filter({e | !($e.department == 'HR')});
+   let sql3 = $df3->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE NOT (department = \'HR\')', $sql3);
+   
+   // Test complex nested condition
+   let df4 = table('employees')->filter({e | ($e.salary > 50000 && $e.department == 'Engineering') || ($e.salary > 100000 && $e.department == 'Sales')});
+   let sql4 = $df4->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE ((salary > 50000 AND department = \'Engineering\') OR (salary > 100000 AND department = \'Sales\'))', $sql4);
+   
+   true;
+}
+
+// Test filter with table aliases
+function <<test.Test>> meta::pure::dsl::tests::testFilterWithTableAliases(): Boolean[1]
+{
+   // Test with table alias
+   let df = ^TableReference(tableName = 'employees', alias = 'e')->asDataFrame()->filter({e | $e.salary > 50000});
+   let sql = $df->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees AS e\nWHERE e.salary > 50000', $sql);
+   
+   true;
+}
+
+// Test filter across different database dialects
+function <<test.Test>> meta::pure::dsl::tests::testFilterAcrossDatabases(): Boolean[1]
+{
+   let df = table('employees')->filter({e | $e.salary > 50000 && $e.department == 'Engineering'});
+   
+   // Test Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE (salary > 50000 AND department = \'Engineering\')', $snowflakeSQL);
+   
+   // Test DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE (salary > 50000 AND department = \'Engineering\')', $duckdbSQL);
+   
+   // Test BigQuery
+   let bigquerySQL = $df->generateBigQuerySQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE (salary > 50000 AND department = \'Engineering\')', $bigquerySQL);
+   
+   // Test Databricks
+   let databricksSQL = $df->generateDatabricksSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE (salary > 50000 AND department = \'Engineering\')', $databricksSQL);
+   
+   // Test Redshift
+   let redshiftSQL = $df->generateRedshiftSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE (salary > 50000 AND department = \'Engineering\')', $redshiftSQL);
+   
+   // Test Postgres
+   let postgresSQL = $df->generatePostgresSQL();
+   assertEquals('SELECT *\nFROM employees\nWHERE (salary > 50000 AND department = \'Engineering\')', $postgresSQL);
+   
+   true;
+}
+
+// Test groupBy with lambda expressions
+function <<test.Test>> meta::pure::dsl::tests::testGroupByWithLambda(): Boolean[1]
+{
+   // Test simple groupBy with lambda
+   let df1 = table('employees')->groupBy({e | $e.department});
+   let sql1 = $df1->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees\nGROUP BY department', $sql1);
+   
+   // Test complex groupBy with lambda
+   let df2 = table('employees')->groupBy({e | [$e.department, $e.location]});
+   let sql2 = $df2->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees\nGROUP BY department, location', $sql2);
+   
+   // Test with table alias
+   let df3 = ^TableReference(tableName = 'employees', alias = 'e')->asDataFrame()->groupBy({e | $e.department});
+   let sql3 = $df3->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees AS e\nGROUP BY e.department', $sql3);
+   
+   true;
+}
+
+// Test groupBy across different database dialects
+function <<test.Test>> meta::pure::dsl::tests::testGroupByAcrossDatabases(): Boolean[1]
+{
+   let df = table('employees')->groupBy({e | [$e.department, $e.location]});
+   
+   // Test Snowflake
+   let snowflakeSQL = $df->generateSnowflakeSQL();
+   assertEquals('SELECT *\nFROM employees\nGROUP BY department, location', $snowflakeSQL);
+   
+   // Test DuckDB
+   let duckdbSQL = $df->generateDuckDBSQL();
+   assertEquals('SELECT *\nFROM employees\nGROUP BY department, location', $duckdbSQL);
+   
+   // Test BigQuery
+   let bigquerySQL = $df->generateBigQuerySQL();
+   assertEquals('SELECT *\nFROM employees\nGROUP BY department, location', $bigquerySQL);
+   
+   // Test Databricks
+   let databricksSQL = $df->generateDatabricksSQL();
+   assertEquals('SELECT *\nFROM employees\nGROUP BY department, location', $databricksSQL);
+   
+   // Test Redshift
+   let redshiftSQL = $df->generateRedshiftSQL();
+   assertEquals('SELECT *\nFROM employees\nGROUP BY department, location', $redshiftSQL);
+   
+   // Test Postgres
+   let postgresSQL = $df->generatePostgresSQL();
+   assertEquals('SELECT *\nFROM employees\nGROUP BY department, location', $postgresSQL);
+   
+   true;
+}

@@ -92,7 +92,9 @@ function <<access.private>> meta::pure::dsl::duckdb::generateGroupByClause(df: D
 {
    if($df.groupBy->isEmpty() || $df.groupBy.columns->isEmpty(), 
       '', 
-      '\nGROUP BY ' + $df.groupBy.columns->map(c | $c->generateDuckDBExpression())->joinStrings(', '))
+      '\nGROUP BY ' + if($df.groupBy->instanceOf(LambdaGroupByClause),
+                         meta::pure::dsl::dataframe::generateLambdaGroupBySQL($df.groupBy->cast(@LambdaGroupByClause).lambda, Database.DUCKDB, {e | generateDuckDBExpression($e)}, $df.groupBy->cast(@LambdaGroupByClause).tableAlias),
+                         $df.groupBy.columns->map(c | $c->generateDuckDBExpression())->joinStrings(', ')))
 }
 
 // Generate the HAVING clause
@@ -194,6 +196,7 @@ function <<access.private>> meta::pure::dsl::duckdb::generateDuckDBExpression(ex
       l: LiteralExpression[1] | $l.value->generateDuckDBLiteral(),
       c: ColumnReference[1] | if($c.tableAlias->isNotEmpty(), $c.tableAlias->toOne() + '.', '') + $c.colSpec.name,
       f: FunctionExpression[1] | $f->generateDuckDBFunction(),
+      lf: LambdaFilterCondition[1] | meta::pure::dsl::dataframe::generateLambdaFilterSQL($lf.lambda, Database.DUCKDB, {e | generateDuckDBExpression($e)}, $lf.tableAlias),
       b: BinaryOperation[1] | '(' + $b.left->generateDuckDBExpression() + ' ' + $b.operator->generateDuckDBBinaryOperator() + ' ' + $b.right->generateDuckDBExpression() + ')',
       u: UnaryOperation[1] | $u.operator->generateDuckDBUnaryOperator() + '(' + $u.expression->generateDuckDBExpression() + ')',
       e: Expression[1] | 'UNKNOWN_EXPRESSION_TYPE'
